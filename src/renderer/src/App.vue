@@ -2,6 +2,7 @@
 import { darkTheme } from 'naive-ui'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useThemeStore } from '@/stores/useThemeStore'
+import { KEY_VUE_USER_ID, KEY_VUE_TOKEN } from '@/constant'
 import ScreenshotOverlay from '@/components/common/ScreenshotOverlay.vue'
 
 const themeStore = useThemeStore()
@@ -12,6 +13,9 @@ let unsubScreenshot: (() => void) | null = null
 
 onMounted(() => {
   themeStore.init()
+  // 告知主进程当前登录状态，让主进程在显示窗口前设好正确尺寸
+  const isLoggedIn = !!(localStorage.getItem(KEY_VUE_USER_ID) && localStorage.getItem(KEY_VUE_TOKEN))
+  window.electronAPI?.setLoggedIn(isLoggedIn)
   unsubScreenshot = window.electronAPI?.onTriggerScreenshot(() => {
     showScreenshot.value = true
   }) ?? null

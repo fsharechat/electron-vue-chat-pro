@@ -52,8 +52,14 @@ function createWindow(): void {
   }
 
   mainWindow.once('ready-to-show', () => {
-    mainWindow!.show()
-    mainWindow!.focus()
+    // 等待渲染层上报登录状态后再显示，避免先显示错误尺寸的空白窗口
+    // 2s 兜底：渲染层未能发送 hasLogged 时强制显示
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isVisible()) {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    }, 2000)
   })
 
   mainWindow.on('close', (e) => {
@@ -136,6 +142,11 @@ function registerIPC(): void {
     mainWindow?.webContents.send('isLogged', isLogged)
     if (isLogged && !tray) createTray()
     if (!isLogged && tray) destroyTray()
+    // 首次加载时窗口尚未显示，收到正确尺寸后再显示
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show()
+      mainWindow.focus()
+    }
   })
 
   ipcMain.on('hasFlashTray', (_, flash: boolean) => {
