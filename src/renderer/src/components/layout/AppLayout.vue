@@ -18,6 +18,7 @@ const message = useMessage()
 function onVisibility() { uiStore.visibilityChange(document.visibilityState) }
 
 onMounted(() => {
+  window.electronAPI?.setLoggedIn(true)
   authStore.initData((isError, msg) => {
     if (isError) message.error(msg)
     else message.info(msg)

@@ -101,6 +101,7 @@ export const useAuthStore = defineStore('auth', () => {
     friendStore.reset()
     groupStore.reset()
     uiStore.reset()
+    window.electronAPI?.setLoggedIn(false)
   }
 
   function modifyMyInfo(value: any) {
