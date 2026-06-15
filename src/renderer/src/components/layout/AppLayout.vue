@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/useUIStore'
 import { useGroupCallStore } from '@/stores/useGroupCallStore'
 import { useMessage } from 'naive-ui'
 import AppSidebar from './AppSidebar.vue'
+import AppTitleBar from './AppTitleBar.vue'
 import GroupVideoCallModal from '@/components/group/GroupVideoCall.vue'
 import SearchFriendDialog from '@/components/friend/SearchFriendDialog.vue'
 import CreateGroup from '@/components/common/CreateGroup.vue'
@@ -31,9 +32,12 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibility)
 
 <template>
   <div class="app-layout">
-    <AppSidebar class="sidebar" />
-    <div class="main">
-      <router-view />
+    <AppTitleBar class="title-bar-row" />
+    <div class="app-content">
+      <AppSidebar class="sidebar" />
+      <div class="main">
+        <router-view />
+      </div>
     </div>
     <GroupVideoCallModal v-if="groupCallStore.showGroupCallDialog" />
     <SearchFriendDialog v-if="uiStore.showSearchFriendDialog" />
@@ -42,7 +46,26 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibility)
 </template>
 
 <style scoped>
-.app-layout { display: flex; width: 100vw; height: 100vh; background: var(--bg-base); overflow: hidden; }
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg-base);
+  overflow: hidden;
+}
+
+.title-bar-row {
+  width: 100%;
+}
+
+.app-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .sidebar { flex-shrink: 0; }
 .main { flex: 1; min-width: 0; overflow: hidden; }
 </style>
