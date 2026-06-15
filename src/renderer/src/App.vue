@@ -1,12 +1,25 @@
 <script setup lang="ts">
 import { darkTheme } from 'naive-ui'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useThemeStore } from '@/stores/useThemeStore'
+import ScreenshotOverlay from '@/components/common/ScreenshotOverlay.vue'
 
 const themeStore = useThemeStore()
 const theme = computed(() => themeStore.isDark ? darkTheme : null)
 
-onMounted(() => themeStore.init())
+const showScreenshot = ref(false)
+let unsubScreenshot: (() => void) | null = null
+
+onMounted(() => {
+  themeStore.init()
+  unsubScreenshot = window.electronAPI?.onTriggerScreenshot(() => {
+    showScreenshot.value = true
+  }) ?? null
+})
+
+onUnmounted(() => {
+  unsubScreenshot?.()
+})
 </script>
 
 <template>
@@ -17,4 +30,9 @@ onMounted(() => themeStore.init())
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
+  <ScreenshotOverlay
+    :show="showScreenshot"
+    @cancel="showScreenshot = false"
+    @done="showScreenshot = false"
+  />
 </template>
