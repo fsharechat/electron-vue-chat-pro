@@ -29,7 +29,7 @@ function close()    { window.electronAPI?.windowControl('close') }
   display: flex;
   align-items: center;
   height: 32px;
-  background: var(--bg-sidebar, #1e1e2e);
+  background: var(--bg-overlay);
   flex-shrink: 0;
   -webkit-app-region: drag;
   user-select: none;
@@ -59,7 +59,7 @@ function close()    { window.electronAPI?.windowControl('close') }
 }
 
 .ctrl-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-elevated);
 }
 
 .ctrl-btn--close:hover {
