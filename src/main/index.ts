@@ -153,15 +153,20 @@ function registerIPC(): void {
   })
 
   ipcMain.handle('get-screen-sources', async () => {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: 1920, height: 1080 }
-    })
-    return sources.map(s => ({
-      id: s.id,
-      name: s.name,
-      thumbnail: s.thumbnail.toDataURL()
-    }))
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 1920, height: 1080 }
+      })
+      return sources.map(s => ({
+        id: s.id,
+        name: s.name,
+        thumbnail: s.thumbnail.toDataURL()
+      }))
+    } catch (err) {
+      console.warn('[desktopCapturer] getSources failed:', err)
+      return []
+    }
   })
 
   ipcMain.on('write-clipboard', (_, dataUrl: string) => {
@@ -192,7 +197,7 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (!mainWindow) createWindow()
-  else mainWindow.show()
+  else { mainWindow.show(); mainWindow.focus() }
 })
 
 app.on('before-quit', () => {
