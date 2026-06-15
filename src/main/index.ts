@@ -72,6 +72,23 @@ function createWindow(): void {
   })
 }
 
+function showMainWindow(): void {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore()
+  } else if (!mainWindow.isVisible()) {
+    // transparent:true 窗口 show() 后 GPU 需要约 1-2 帧重新合成内容
+    // 先设 opacity=0 隐藏空帧，内容就绪后再显示，消除闪动
+    mainWindow.setOpacity(0)
+    mainWindow.show()
+    setTimeout(() => { mainWindow?.setOpacity(1) }, 60)
+  } else {
+    mainWindow.show()
+  }
+  mainWindow.focus()
+  flashTray(false)
+}
+
 function createTray(): void {
   const trayIcon = nativeImage.createFromPath(getResourcePath(trayIconName))
   tray = new Tray(trayIcon)
@@ -79,12 +96,7 @@ function createTray(): void {
   const menu = Menu.buildFromTemplate([
     {
       label: '打开主界面',
-      click: () => {
-        if (mainWindow?.isMinimized()) mainWindow.restore()
-        mainWindow?.show()
-        mainWindow?.focus()
-        flashTray(false)
-      }
+      click: () => showMainWindow()
     },
     {
       label: '退出',
@@ -97,12 +109,7 @@ function createTray(): void {
 
   tray.setContextMenu(menu)
   tray.setToolTip('飞享IM')
-  tray.on('click', () => {
-    if (mainWindow?.isMinimized()) mainWindow.restore()
-    mainWindow?.show()
-    mainWindow?.focus()
-    flashTray(false)
-  })
+  tray.on('click', () => showMainWindow())
 }
 
 function flashTray(flash: boolean): void {
@@ -136,8 +143,12 @@ function registerIPC(): void {
   ipcMain.on('hasLogged', (_, isLogged: boolean) => {
     logined = isLogged
     const size = isLogged ? WIN_SIZE_MAIN : WIN_SIZE_LOGIN
-    mainWindow?.setSize(size.width, size.height)
-    mainWindow?.center()
+    // 尺寸有变化时才 resize + center，避免重复 IPC 调用导致窗口抖动
+    const [currentW, currentH] = mainWindow?.getSize() ?? [0, 0]
+    if (currentW !== size.width || currentH !== size.height) {
+      mainWindow?.setSize(size.width, size.height)
+      mainWindow?.center()
+    }
     mainWindow?.setResizable(isLogged)
     mainWindow?.webContents.send('isLogged', isLogged)
     if (isLogged && !tray) createTray()
@@ -208,7 +219,7 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (!mainWindow) createWindow()
-  else { mainWindow.show(); mainWindow.focus() }
+  else showMainWindow()
 })
 
 app.on('before-quit', () => {

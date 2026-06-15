@@ -119,6 +119,9 @@ export const useUIStore = defineStore('ui', () => {
     } catch (e) {
       console.warn('Notify init failed', e)
     }
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
   }
 
   const currentAudioMessageId = ref('')
@@ -146,9 +149,12 @@ export const useUIStore = defineStore('ui', () => {
   function setOnlineStatus(status: boolean) { onlineStatus.value = status }
   function setFirstLogin(val: boolean) { firstLogin.value = val }
   function visibilityChange(state: string) { visibilityState.value = state }
-  function playMsgNotify() {
+  function playMsgNotify(title?: string, body?: string) {
     try { _notify?.player?.() } catch (e) {}
     window.electronAPI?.setFlashTray(true)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && title) {
+      try { new Notification(title, { body, silent: true }) } catch (e) {}
+    }
   }
 
   function updateUserInfos(infos: any[]) {

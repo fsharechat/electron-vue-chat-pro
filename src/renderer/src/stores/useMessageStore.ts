@@ -104,7 +104,23 @@ export const useMessageStore = defineStore('message', () => {
           const isSilent = sc?.conversationInfo.isSilent ?? false
           // 免打扰时不播放提示音
           if (!isSilent) {
-            uiStore.playMsgNotify()
+            const notifyTitle = sc?.name || '新消息'
+            const ct = protoMessage.content?.type
+            let notifyBody: string
+            if (ct === MessageContentType.Text || ct === MessageContentType.P_Text) {
+              notifyBody = protoMessage.content?.searchableContent || ''
+            } else if (ct === MessageContentType.Voice) {
+              notifyBody = '[语音]'
+            } else if (ct === MessageContentType.Image) {
+              notifyBody = '[图片]'
+            } else if (ct === MessageContentType.Video) {
+              notifyBody = '[视频]'
+            } else if (ct === MessageContentType.File) {
+              notifyBody = '[文件]'
+            } else {
+              notifyBody = protoMessage.content?.searchableContent || '[消息]'
+            }
+            uiStore.playMsgNotify(notifyTitle, notifyBody)
           }
           if (sc) {
             if (!sc.conversationInfo.unreadCount) sc.conversationInfo.unreadCount = new UnreadCount()

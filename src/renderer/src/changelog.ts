@@ -6,6 +6,15 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.3.1',
+    date: '2026-06-15',
+    items: [
+      '新消息系统通知：收到新消息时弹出操作系统通知气泡，显示发送方名称与消息预览（免打扰会话不弹）',
+      '修复从任务栏/托盘打开窗口偶发闪动：transparent 窗口 show() 时先隐藏单帧透明空帧再显示，消除 GPU 重合成导致的闪白',
+      '修复首次启动窗口轻微抖动：hasLogged IPC 加尺寸守卫，避免 App.vue 与 AppLayout.vue 双重 setSize+center',
+    ]
+  },
+  {
     version: '1.3.0',
     date: '2026-06-15',
     items: [
