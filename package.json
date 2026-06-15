@@ -13,7 +13,8 @@
     "preview": "electron-vite preview",
     "test": "vitest run",
     "dist": "npm run build && electron-builder",
-    "dist:dir": "npm run build && electron-builder --dir"
+    "dist:dir": "npm run build && electron-builder --dir",
+    "clean": "rm -rf out release"
   },
   "build": {
     "productName": "飞享IM",
