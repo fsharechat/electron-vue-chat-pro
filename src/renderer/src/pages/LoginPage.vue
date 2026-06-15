@@ -122,7 +122,7 @@ function onEnter(e: KeyboardEvent) {
 
 .login-card {
   width: 100%;
-  padding: 48px 48px 40px;
+  padding: 40px 28px 32px;
   -webkit-app-region: no-drag;
 }
 
