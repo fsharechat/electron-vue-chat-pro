@@ -23,6 +23,7 @@
   "build": {
     "productName": "飞享IM",
     "appId": "com.comsince.fshare",
+    "artifactName": "${name}-${version}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
