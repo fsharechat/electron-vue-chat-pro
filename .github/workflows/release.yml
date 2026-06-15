@@ -6,8 +6,8 @@ on:
       - 'v*'
 
 jobs:
-  # macOS runner 同时打包 mac + linux（electron-builder 在 macOS 上可交叉编译 Linux）
-  build-mac-linux:
+  # macOS：同时打 Intel(x64) + Apple Silicon(arm64)
+  build-mac:
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -22,11 +22,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build & Package (mac + linux)
-        run: npm run build && npx electron-builder --mac --linux
+      - name: Build & Package (mac x64 + arm64)
+        run: npm run build && npx electron-builder --mac --x64 --arm64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 未配置 Apple 证书时跳过 macOS 代码签名
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload macOS artifacts
@@ -34,6 +33,27 @@ jobs:
         with:
           files: release/*.dmg
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Linux：ubuntu-latest 是 x64，原生编译
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & Package (linux x64)
+        run: npm run build && npx electron-builder --linux --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Linux artifacts
         uses: softprops/action-gh-release@v2
@@ -43,7 +63,7 @@ jobs:
             release/*.deb
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Windows 必须在 Windows runner 上原生打包
+  # Windows：原生 x64 + ia32（package.json 已配置）
   build-windows:
     runs-on: windows-latest
     steps:
