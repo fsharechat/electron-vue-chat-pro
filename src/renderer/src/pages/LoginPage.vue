@@ -110,41 +110,30 @@ function onEnter(e: KeyboardEvent) {
 
 <style scoped>
 .login-page {
-  width: 100vw; height: 100vh;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--bg-void);
-  /* Subtle grid pattern */
-  background-image:
-    linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-.login-card {
-  width: 380px;
-  padding: 44px 40px;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--bg-surface);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg), 0 0 60px rgba(99,102,241,0.05);
-  position: relative;
-  overflow: hidden;
+  -webkit-app-region: drag;
+  user-select: none;
 }
-/* Top accent line */
-.login-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+
+.login-card {
+  width: 100%;
+  padding: 48px 48px 40px;
+  -webkit-app-region: no-drag;
 }
-.login-logo { text-align: center; margin-bottom: 36px; }
+
+.login-logo { text-align: center; margin-bottom: 32px; }
 .logo-wrap {
   width: 64px; height: 64px;
   border-radius: var(--radius-lg);
   background: var(--accent-subtle);
   border: 1px solid var(--border-accent);
   display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 16px;
+  margin: 0 auto 14px;
 }
 .logo-icon { color: var(--accent); }
 .login-logo h2 {
@@ -156,7 +145,7 @@ function onEnter(e: KeyboardEvent) {
   letter-spacing: -0.5px;
 }
 .subtitle { font-size: 13px; color: var(--text-muted); }
-.form-group { margin-bottom: 18px; }
+.form-group { margin-bottom: 16px; }
 .form-group label {
   display: block;
   font-size: 11.5px;

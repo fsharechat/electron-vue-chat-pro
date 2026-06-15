@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { WIN_SIZE_LOGIN, WIN_SIZE_MAIN } from './common'
 
 describe('window size constants', () => {
-  it('login window is 460x580', () => {
-    expect(WIN_SIZE_LOGIN).toEqual({ width: 460, height: 580 })
+  it('login window is 880x520', () => {
+    expect(WIN_SIZE_LOGIN).toEqual({ width: 880, height: 520 })
   })
 
   it('main window is 1080x720', () => {
