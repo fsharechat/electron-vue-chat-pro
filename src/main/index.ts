@@ -35,6 +35,7 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: false,
+      backgroundThrottling: false,
     }
   })
 
