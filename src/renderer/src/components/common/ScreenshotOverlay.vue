@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 
 const props = withDefaults(defineProps<{ show?: boolean }>(), { show: false })
 const emit = defineEmits<{ cancel: []; done: [] }>()
@@ -10,10 +10,14 @@ const startX = ref(0)
 const startY = ref(0)
 const endX = ref(0)
 const endY = ref(0)
+// hasCrop tracks whether the user has finished a drag selection
 const hasCrop = ref(false)
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') emit('cancel')
+// alive flag: prevents stale img.onload callbacks from firing after unmount
+let alive = true
+
+function onWindowKeydown(e: KeyboardEvent) {
+  if (props.show && e.key === 'Escape') emit('cancel')
 }
 
 function onMousedown(e: MouseEvent) {
@@ -76,20 +80,29 @@ async function confirm() {
   const w = Math.abs(endX.value - startX.value)
   const h = Math.abs(endY.value - startY.value)
 
+  // Guard: no crop region selected
+  if (!hasCrop.value || w === 0 || h === 0) {
+    emit('done')
+    return
+  }
+
   const sources = await window.electronAPI?.getScreenSources?.() ?? []
   const src = sources[0]
-  if (!src || w === 0 || h === 0) {
+  if (!src) {
     emit('done')
     return
   }
 
   const img = new Image()
   img.onload = () => {
+    // Don't emit or write if component was unmounted before load finished
+    if (!alive) return
     const offscreen = document.createElement('canvas')
     const dpr = window.devicePixelRatio || 1
     offscreen.width = w * dpr
     offscreen.height = h * dpr
-    const ctx = offscreen.getContext('2d')!
+    const ctx = offscreen.getContext('2d')
+    if (!ctx) return
     ctx.drawImage(img, x * dpr, y * dpr, w * dpr, h * dpr, 0, 0, w * dpr, h * dpr)
     window.electronAPI?.writeImageToClipboard(offscreen.toDataURL('image/png'))
     emit('done')
@@ -102,20 +115,26 @@ function cancel() { emit('cancel') }
 watch(() => props.show, (v) => {
   if (v) {
     hasCrop.value = false
-    setTimeout(resizeCanvas, 0)
+    // nextTick ensures the canvas element is in the DOM before resizing
+    nextTick(resizeCanvas)
   }
 })
 
-onMounted(() => window.addEventListener('resize', resizeCanvas))
-onUnmounted(() => window.removeEventListener('resize', resizeCanvas))
+onMounted(() => {
+  window.addEventListener('keydown', onWindowKeydown)
+  window.addEventListener('resize', resizeCanvas)
+})
+onUnmounted(() => {
+  alive = false
+  window.removeEventListener('keydown', onWindowKeydown)
+  window.removeEventListener('resize', resizeCanvas)
+})
 </script>
 
 <template>
   <div
     v-if="show"
     class="screenshot-overlay"
-    tabindex="0"
-    @keydown="onKeydown"
     @mousedown="onMousedown"
     @mousemove="onMousemove"
     @mouseup="onMouseup"
