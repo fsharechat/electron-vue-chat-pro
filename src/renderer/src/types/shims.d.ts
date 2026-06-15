@@ -11,3 +11,17 @@ declare module '*.vue' {
   const component: DefineComponent<{}, {}, any>
   export default component
 }
+
+interface ElectronAPI {
+  windowControl(action: 'minimize' | 'maximize' | 'close'): void
+  setLoggedIn(isLogged: boolean): void
+  onIsLogged(cb: (v: boolean) => void): () => void
+  setFlashTray(flash: boolean): void
+  onTriggerScreenshot(cb: () => void): () => void
+  getScreenSources(): Promise<Array<{ id: string; name: string; thumbnail: string }>>
+  writeImageToClipboard(dataUrl: string): void
+}
+
+interface Window {
+  electronAPI?: ElectronAPI
+}
