@@ -97,6 +97,7 @@ export const useUIStore = defineStore('ui', () => {
     if (total === 0) {
       _notify?.faviconClear?.()
       _notify?.setTitle?.()
+      window.electronAPI?.setFlashTray(false)
     } else {
       _notify?.setFavicon?.(total)
       _notify?.setTitle?.('你有新的消息未读')
@@ -140,7 +141,10 @@ export const useUIStore = defineStore('ui', () => {
   function setOnlineStatus(status: boolean) { onlineStatus.value = status }
   function setFirstLogin(val: boolean) { firstLogin.value = val }
   function visibilityChange(state: string) { visibilityState.value = state }
-  function playMsgNotify() { try { _notify?.player?.() } catch (e) {} }
+  function playMsgNotify() {
+    try { _notify?.player?.() } catch (e) {}
+    window.electronAPI?.setFlashTray(true)
+  }
 
   function updateUserInfos(infos: any[]) {
     const authStore = useAuthStore()
