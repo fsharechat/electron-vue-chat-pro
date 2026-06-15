@@ -30,6 +30,7 @@ function close()    { window.electronAPI?.windowControl('close') }
   align-items: center;
   height: 32px;
   background: var(--bg-overlay);
+  border-bottom: 1px solid var(--border-strong);
   flex-shrink: 0;
   -webkit-app-region: drag;
   user-select: none;
