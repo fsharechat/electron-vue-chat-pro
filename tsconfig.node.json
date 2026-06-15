@@ -11,6 +11,7 @@
   },
   "include": [
     "electron.vite.config.*",
+    "vitest.config.*",
     "src/main/**/*",
     "src/preload/**/*"
   ]
