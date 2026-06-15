@@ -1,0 +1,10 @@
+.elv__drag{-webkit-app-region: drag; -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none;}
+.elv__nodrag{-webkit-app-region: no-drag;}
+.elv-winbar{height: 25px;}
+.elv-winbar__title{color: #999; font-size: 15px; padding: 8px 0 0 10px;}
+.elv-winbar__actions{position: absolute; top: 0; right: 0; z-index: 1001;}
+.elv-winbar__actions .wbtn{cursor: pointer; display:inline-block; vertical-align:middle; text-align: center; line-height: 25px; width: 35px; -webkit-app-region: no-drag;}
+.elv-winbar__actions .wbtn:hover{background: #dedede;}
+.elv-winbar__actions .wbtn .iconfont{color: #23252f; font-size: 15px;}
+.elv-winbar__actions .wbtn-ding{background: #dedede;}
+.elv-winbar__actions .wbtn-close:hover{background: #f45454; color: #fff;}
