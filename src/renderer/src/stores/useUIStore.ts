@@ -97,12 +97,17 @@ export const useUIStore = defineStore('ui', () => {
     if (total === 0) {
       _notify?.faviconClear?.()
       _notify?.setTitle?.()
-      window.electronAPI?.setFlashTray(false)
     } else {
       _notify?.setFavicon?.(total)
       _notify?.setTitle?.('你有新的消息未读')
     }
     return total
+  })
+
+  watch(unreadTotalCount, (total) => {
+    if (total === 0) {
+      window.electronAPI?.setFlashTray(false)
+    }
   })
 
   async function initNotify() {
