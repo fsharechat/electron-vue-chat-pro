@@ -26,7 +26,13 @@ jobs:
         run: npm run build && npx electron-builder --mac --x64 --arm64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 有证书时去掉下面这行，填入 CSC_LINK / CSC_KEY_PASSWORD / APPLE_ID 等 Secrets
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          # CSC_LINK: ${{ secrets.CSC_LINK }}
+          # CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload macOS artifacts
         uses: softprops/action-gh-release@v2
