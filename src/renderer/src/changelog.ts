@@ -6,6 +6,18 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.3.0',
+    date: '2026-06-15',
+    items: [
+      'Electron 桌面客户端：基于 electron-vite + Electron 35 全面重构，支持 macOS / Windows / Linux',
+      '自定义无边框标题栏：最小化 / 最大化 / 关闭窗口控制，拖拽移动，随明暗主题自动切换',
+      '登录后窗口自动扩展（360×520 → 1080×720），退出登录自动还原',
+      '系统托盘：登录后驻留托盘，收到新消息托盘图标闪烁提醒',
+      '截图快捷键 Ctrl+Alt+Z：全屏框选裁剪区域，一键复制到剪贴板',
+      '现代安全架构：contextIsolation + preload + contextBridge',
+    ]
+  },
+  {
     version: '1.2.5',
     date: '2026-06-08',
     items: [
