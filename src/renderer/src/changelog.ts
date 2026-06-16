@@ -6,6 +6,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.3.3',
+    date: '2026-06-16',
+    items: [
+      '性能优化：将侧边栏在线状态点动画从 box-shadow 改为伪元素 transform+opacity 实现，消除持续 GPU repaint，空闲时 CPU 占用从 31.5% 降至 11.1%（降幅 65%）',
+      '生产构建移除调试日志：electron.vite.config.ts 添加 esbuild.drop，打包时自动剔除全部 console.* 调用，零运行时开销',
+    ]
+  },
+  {
     version: '1.3.2',
     date: '2026-06-16',
     items: [

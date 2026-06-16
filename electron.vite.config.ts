@@ -21,6 +21,10 @@ export default defineConfig({
     server: { port: 9080 },
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version)
+    },
+    esbuild: {
+      // 生产构建时移除所有 console.* 调用，开发时保留
+      drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : []
     }
   }
 })

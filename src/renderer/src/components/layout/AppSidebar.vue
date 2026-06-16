@@ -176,8 +176,17 @@ function loginOut() {
   border-radius: 50%;
   border: 2px solid var(--bg-surface);
 }
-.online  { background: var(--color-online); animation: pulse-online 2.5s ease infinite; }
-.offline { background: var(--danger); animation: pulse-offline 2.5s ease infinite; }
+/* 伪元素做涟漪，主元素保持静止；transform/opacity 仅走合成层，不触发 repaint */
+.status-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+.online  { background: var(--color-online); }
+.online::after  { background: var(--color-online); animation: pulse-online  2.5s ease-out infinite; }
+.offline { background: var(--danger); }
+.offline::after { background: var(--danger); animation: pulse-offline 2.5s ease-out infinite; }
 
 /* ── Divider ─────────────────────────────── */
 .divider {
