@@ -79,6 +79,11 @@ watch(pendingScreenshotDataUrl, (dataUrl) => {
   setPendingImage(file)
 })
 
+// 切换会话时清除图片预览，防止误发到其他会话
+watch(() => convStore.selectTarget, () => {
+  clearPendingImage()
+})
+
 onMounted(() => {
   document.addEventListener('click', closeScreenshotMenu)
 })
@@ -216,8 +221,14 @@ async function send() {
   try {
     if (hasImage) {
       const file = pendingImage.value!.file
-      clearPendingImage()
-      await sendImage(file)
+      try {
+        await sendImage(file)
+        clearPendingImage()
+      } catch (e) {
+        console.error('Image send failed', e)
+        message.error('图片发送失败，请重试')
+        return
+      }
     }
     if (hasText) {
       const { mentionedType, mentionedTargets } = extractMentions()
