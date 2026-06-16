@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMessage } from 'naive-ui'
 import { useMessageStore } from '@/stores/useMessageStore'
@@ -29,7 +29,64 @@ const groupStore = useGroupStore()
 const callStore = useCallStore()
 const message = useMessage()
 
-const { emojis, userInfoList } = storeToRefs(uiStore)
+const { emojis, userInfoList, pendingScreenshotDataUrl } = storeToRefs(uiStore)
+
+// ── 截图按钮下拉 ────────────────────────────────────────────────
+const hideWindow = ref(localStorage.getItem('screenshot-hide-window') === 'true')
+const showScreenshotMenu = ref(false)
+
+function triggerScreenshot(): void {
+  showScreenshotMenu.value = false
+  window.electronAPI?.startScreenshot(hideWindow.value)
+}
+
+function toggleHideWindow(): void {
+  hideWindow.value = !hideWindow.value
+  localStorage.setItem('screenshot-hide-window', String(hideWindow.value))
+  showScreenshotMenu.value = false
+}
+
+function closeScreenshotMenu(e: MouseEvent): void {
+  if (!(e.target as HTMLElement).closest?.('.screenshot-btn-group')) {
+    showScreenshotMenu.value = false
+  }
+}
+
+// ── 图片预览 ────────────────────────────────────────────────────
+interface PendingImage { file: File; url: string }
+const pendingImage = ref<PendingImage | null>(null)
+
+function setPendingImage(file: File): void {
+  if (pendingImage.value) URL.revokeObjectURL(pendingImage.value.url)
+  pendingImage.value = { file, url: URL.createObjectURL(file) }
+}
+
+function clearPendingImage(): void {
+  if (pendingImage.value) {
+    URL.revokeObjectURL(pendingImage.value.url)
+    pendingImage.value = null
+  }
+}
+
+// 截图确认后 → 进入预览（不自动发送）
+watch(pendingScreenshotDataUrl, (dataUrl) => {
+  if (!dataUrl) return
+  uiStore.pendingScreenshotDataUrl = ''
+  const [header, b64] = dataUrl.split(',')
+  const mime = header.match(/:(.*?);/)?.[1] ?? 'image/png'
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+  const file = new File([bytes], `screenshot-${Date.now()}.png`, { type: mime })
+  setPendingImage(file)
+})
+
+onMounted(() => {
+  document.addEventListener('click', closeScreenshotMenu)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeScreenshotMenu)
+  if (pendingImage.value) URL.revokeObjectURL(pendingImage.value.url)
+})
 
 const content = ref('')
 const showEmoji = ref(false)
@@ -113,7 +170,7 @@ function selectAtMember(member: { memberId: string; name: string }) {
   })
 }
 
-const sendBtnActive = computed(() => content.value.trim().length > 0)
+const sendBtnActive = computed(() => content.value.trim().length > 0 || !!pendingImage.value)
 
 function buildLocal(mc: any) {
   const sm = new SendMessage(convStore.selectTarget, mc)
@@ -152,16 +209,25 @@ function extractMentions(): { mentionedType: number; mentionedTargets: string[] 
   return { mentionedType: targets.length ? 1 : 0, mentionedTargets: targets }
 }
 
-function send() {
-  if (!content.value.trim()) { message.warning('不能发送空白信息'); return }
+async function send() {
+  const hasText = !!content.value.trim()
+  const hasImage = !!pendingImage.value
+  if (!hasText && !hasImage) { message.warning('不能发送空白信息'); return }
   try {
-    const { mentionedType, mentionedTargets } = extractMentions()
-    const mc = new TextMessageContent(content.value, mentionedType, mentionedTargets)
-    buildAndSend(mc)
-    content.value = ''
+    if (hasImage) {
+      const file = pendingImage.value!.file
+      clearPendingImage()
+      await sendImage(file)
+    }
+    if (hasText) {
+      const { mentionedType, mentionedTargets } = extractMentions()
+      const mc = new TextMessageContent(content.value, mentionedType, mentionedTargets)
+      buildAndSend(mc)
+      content.value = ''
+    }
     showAtMenu.value = false
     textareaRef.value?.focus()
-  } catch (e) { console.error('Send text failed', e) }
+  } catch (e) { console.error('Send failed', e) }
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -289,9 +355,13 @@ function onPaste(e: ClipboardEvent) {
   const items = e.clipboardData?.items
   if (!items) return
   for (const item of Array.from(items)) {
-    if (item.kind === 'file') {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
       const blob = item.getAsFile()
-      if (blob && blob.size > 0) { sendImage(blob); break }
+      if (blob && blob.size > 0) {
+        const file = new File([blob], `paste-${Date.now()}.png`, { type: blob.type })
+        setPendingImage(file)
+        break
+      }
     }
   }
 }
@@ -311,6 +381,24 @@ function onPaste(e: ClipboardEvent) {
         </template>
         <EmojiPicker @pick="pickEmoji" />
       </n-popover>
+
+      <!-- 截图按钮 -->
+      <div class="screenshot-btn-group tool-btn-group">
+        <button class="tool-btn" title="截图" @click.stop="triggerScreenshot">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+          </svg>
+        </button>
+        <button class="tool-btn tool-btn-chevron" title="截图选项" @click.stop="showScreenshotMenu = !showScreenshotMenu">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+        </button>
+        <div v-if="showScreenshotMenu" class="screenshot-menu">
+          <div class="screenshot-menu-item" @click.stop="toggleHideWindow">
+            <span class="screenshot-menu-check">{{ hideWindow ? '✓' : '' }}</span>
+            隐藏当前窗口
+          </div>
+        </div>
+      </div>
 
       <label class="tool-btn" title="发送图片">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -339,6 +427,14 @@ function onPaste(e: ClipboardEvent) {
           <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
         </svg>
       </button>
+    </div>
+
+    <!-- 图片预览 -->
+    <div v-if="pendingImage" class="pending-preview">
+      <div class="pending-item">
+        <img :src="pendingImage.url" class="pending-thumb" alt="待发图片" />
+        <button class="pending-remove" title="移除" @click="clearPendingImage">×</button>
+      </div>
     </div>
 
     <!-- @ mention menu -->
@@ -565,4 +661,81 @@ function onPaste(e: ClipboardEvent) {
   opacity: 0;
   transform: translateY(6px);
 }
+
+/* 截图按钮组 */
+.tool-btn-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.tool-btn-chevron {
+  width: 14px !important;
+  padding: 0 !important;
+  color: var(--text-muted);
+}
+.screenshot-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  background: var(--bg-float, #2a2a3a);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px var(--shadow);
+  min-width: 140px;
+  z-index: 500;
+  padding: 4px 0;
+}
+.screenshot-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.screenshot-menu-item:hover { background: var(--bg-elevated); }
+.screenshot-menu-check {
+  width: 14px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* 图片预览区 */
+.pending-preview {
+  padding: 8px 16px 4px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pending-item {
+  position: relative;
+  display: inline-flex;
+}
+.pending-thumb {
+  height: 64px;
+  max-width: 120px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  display: block;
+}
+.pending-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.pending-remove:hover { background: #f5222d; }
 </style>
