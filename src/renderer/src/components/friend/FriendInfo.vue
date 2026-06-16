@@ -3,6 +3,7 @@ import { ref, watch, onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import type { FriendInfo } from '@/types'
 import webSocketClient from '@/websocket/websocketcli'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const props = defineProps<{ friend: FriendInfo }>()
 const emit = defineEmits<{ (e: 'send-message'): void }>()
@@ -52,11 +53,7 @@ async function saveRemark() {
           </svg>
         </div>
       </div>
-      <img
-        :src="friend.img || '/images/vue.jpg'"
-        class="profile-avatar"
-        onerror="this.src='/images/vue.jpg'"
-      />
+      <UserAvatar :src="friend.img" :name="friend.nickname" :size="90" radius="6px" />
     </div>
 
     <div class="divider" />

@@ -260,7 +260,13 @@ async function onFileSelected(e: Event) {
       m.content = finalMc
       sendToServer(m)
       msgStore.updateSendMessage({ messageId: protoMsg.messageId, messageContent: finalMc })
-    } catch { message.error('文件上传失败') }
+    } catch {
+      message.error('文件上传失败')
+      // 停止转圈（downloadStatus: -1 表示上传失败）
+      msgStore.setFileDownloadStatus({ messageId: protoMsg.messageId, downloadStatus: -1, downloadPercent: 0 })
+      // 将消息标记为发送失败，显示红点
+      msgStore.updateMessageStatus({ messageId: protoMsg.messageId, status: 2 })
+    }
   } catch (e) { console.error('File send failed', e) }
   ;(e.target as HTMLInputElement).value = ''
 }

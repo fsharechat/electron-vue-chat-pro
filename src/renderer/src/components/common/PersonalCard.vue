@@ -102,11 +102,11 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   <div class="personal-card" id="personal-card-popup">
     <div class="card-hd">
       <img
-        :src="authStore.user.img || '/images/vue.jpg'"
+        :src="authStore.user.img"
         class="banner-img"
         :class="{ uploading }"
         title="点击更换头像"
-        onerror="this.src='/images/vue.jpg'"
+        onerror="this.onerror=null"
         @click="openAvatarPicker"
       />
       <input
@@ -171,6 +171,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   border-top-right-radius: 6px;
   cursor: pointer;
   transition: filter 0.2s;
+  background: linear-gradient(135deg, #6366f1, #818cf8);
 }
 .banner-img:hover {
   filter: brightness(0.85);

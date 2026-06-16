@@ -8,6 +8,7 @@ import { useConversationStore } from '@/stores/useConversationStore'
 import { useGroupCallStore } from '@/stores/useGroupCallStore'
 import { useMessage } from 'naive-ui'
 import webSocketClient from '@/websocket/websocketcli'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import LocalStore from '@/websocket/store/localstore'
 import { SUCCESS_CODE } from '@/constant'
 
@@ -218,7 +219,7 @@ function exit() {
                 :class="{ disabled: item.friend.disabled }"
                 @click="toggleFriend(item.friend)"
               >
-                <img :src="item.friend.img" class="avatar" onerror="this.src='/images/vue.jpg'" />
+                <UserAvatar :src="item.friend.img" :name="item.friend.remark || item.friend.nickname" :size="36" radius="4px" />
                 <span class="remark">{{ item.friend.remark || item.friend.nickname }}</span>
                 <div class="checkbox" :class="{ checked: isSelected(item.friend.wxid) || (item.friend.disabled && item.friend.checked) }">
                   <svg v-if="isSelected(item.friend.wxid) || (item.friend.disabled && item.friend.checked)" width="10" height="10" viewBox="0 0 12 12" fill="white">
@@ -238,7 +239,7 @@ function exit() {
           </div>
           <div class="selected-list">
             <div v-for="f in selectedFriends" :key="f.wxid" class="selected-row">
-              <img :src="f.img" class="avatar" onerror="this.src='/images/vue.jpg'" />
+              <UserAvatar :src="f.img" :name="f.remark || f.nickname" :size="36" radius="4px" />
               <span class="remark">{{ f.remark || f.nickname }}</span>
               <span class="del-btn" @click="removeFriend(f.wxid)">✕</span>
             </div>

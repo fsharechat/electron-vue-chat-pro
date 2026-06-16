@@ -12,6 +12,7 @@ import ProtoMessage from '@/websocket/message/protomessage'
 import MessageConfig from '@/websocket/message/messageConfig'
 import MessageShardingUtil from '@/websocket/utils/MessageShardingUtil'
 import LocalStore from '@/websocket/store/localstore'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import Conversation from '@/websocket/model/conversation'
 import MessageStatus from '@/websocket/message/messageStatus'
 import MessageContentType from '@/websocket/message/messageContentType'
@@ -134,7 +135,7 @@ function sendRelay() {
         class="relay-item"
         @click="showConfirmDialog(item.target)"
       >
-        <img :src="item.img" class="ra" onerror="this.src='/images/vue.jpg'" />
+        <UserAvatar :src="item.img" :name="item.name" :size="36" radius="6px" />
         <span>{{ item.name }}</span>
       </div>
       <div v-if="filteredList.length === 0" class="empty-tip">无匹配结果</div>

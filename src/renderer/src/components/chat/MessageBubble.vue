@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { useMessage, useDialog } from 'naive-ui'
 import { dlStateCache } from './fileDownloadStates'
 import type { ProtoMessage } from '@/types'
 import { storeToRefs } from 'pinia'
 import { useUIStore } from '@/stores/useUIStore'
 import { useConversationStore } from '@/stores/useConversationStore'
 import { useGroupStore } from '@/stores/useGroupStore'
+import { useMessageStore } from '@/stores/useMessageStore'
 import MarkdownText from './MarkdownText.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import LocationMessage from './LocationMessage.vue'
 import MessageConfig from '@/websocket/message/messageConfig'
 import TimeUtils from '@/websocket/utils/timeUtils'
 import Utils from '@/websocket/utils/utils'
+import FscMessage from '@/websocket/message/FscMessage'
+import webSocketClient from '@/websocket/websocketcli'
 
 const props = defineProps<{
   message: ProtoMessage
@@ -26,11 +30,17 @@ const emit = defineEmits<{
 const uiStore = useUIStore()
 const convStore = useConversationStore()
 const groupStore = useGroupStore()
+const msgStore = useMessageStore()
+const nMessage = useMessage()
+const dialog = useDialog()
 const { userInfoList, stateMessageReports, emojis, minuteTick } = storeToRefs(uiStore)
 const { isSingleConversation } = storeToRefs(convStore)
 const { currentGroupMemberCount } = storeToRefs(groupStore)
+const { fileDownloadStatus } = storeToRefs(msgStore)
 
 const isSelf = computed(() => props.message.direction === 0)
+const isSending    = computed(() => props.message.status === 0) // MessageStatus.Sending
+const isSendFailed = computed(() => props.message.status === 2) // MessageStatus.SendFailure
 
 const isNotification = computed(() => props.message.content.type >= 80 && props.message.content.type <= 117)
 const isRecallNotification = computed(() => props.message.content.type === 84)
@@ -157,8 +167,33 @@ function toggleAudio() {
   uiStore.playAudio(audioInfo.value.url, props.message.messageId, () => {})
 }
 
+function resendMessage() {
+  // 文件上传失败：没有 remotePath，无法仅靠 WebSocket 重发，弹框引导用户重新选择
+  if (isFile.value && !fileInfo.value.url) {
+    dialog.warning({
+      title: '文件发送失败',
+      content: '文件上传未成功，需要重新选择文件发送。点击确定将删除此消息。',
+      positiveText: '确定',
+      negativeText: '取消',
+      onPositiveClick: () => {
+        msgStore.deleteMessage(props.message.messageId)
+      }
+    })
+    return
+  }
+  msgStore.updateMessageStatus({ messageId: props.message.messageId, status: 0 })
+  const fscMsg = FscMessage.convertFromProtomessage(props.message)
+  ;(webSocketClient as any)._instance?.sendMessage(fscMsg)
+}
+
 // SVG 环形进度参数：r=9，圆心(14,14)，周长≈56.55
 const CIRC = 2 * Math.PI * 9
+
+// 上传进度：来自 msgStore.fileDownloadStatus（发送文件时由 MessageInput 写入）
+const uploadState = computed(() => fileDownloadStatus.value.find((f: any) => f.messageId === props.message.messageId))
+const isUploading = computed(() => uploadState.value?.downloadStatus === 1)
+const uploadPercent = computed(() => uploadState.value?.downloadPercent ?? 0)
+const uploadStrokeDashoffset = computed(() => CIRC * (1 - uploadPercent.value / 100))
 
 const downloadStatus = ref<'idle' | 'downloading' | 'done'>('idle')
 const downloadPercent = ref(0)
@@ -221,10 +256,26 @@ async function downloadFile() {
       <div v-if="!isSingleConversation && !isSelf" class="sender-name">{{ senderName }}</div>
       <div class="bubble-meta" :class="{ self: isSelf }">
         <div v-if="isSelf" class="read-status">
-          <span v-if="messageStatus === 2" class="read">已读</span>
-          <span v-else-if="messageStatus === 1" class="delivered">已送达</span>
-          <span v-else-if="messageStatus === 3" class="unread">未读</span>
-          <span v-else-if="messageStatus === 4" :class="readCountText === '全部已读' ? 'read' : 'unread'">{{ readCountText }}</span>
+          <!-- 发送中：转圈 -->
+          <span v-if="isSending" class="sending-spin" title="发送中">
+            <svg viewBox="0 0 16 16" width="14" height="14">
+              <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="28" stroke-dashoffset="10" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <!-- 发送失败：红点，点击重试 -->
+          <span v-else-if="isSendFailed" class="send-fail" title="发送失败，点击重试" @click.stop="resendMessage">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+              <circle cx="8" cy="8" r="8"/>
+              <text x="8" y="12" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">!</text>
+            </svg>
+          </span>
+          <!-- 发送成功：正常已读/送达/未读 -->
+          <template v-else>
+            <span v-if="messageStatus === 2" class="read">已读</span>
+            <span v-else-if="messageStatus === 1" class="delivered">已送达</span>
+            <span v-else-if="messageStatus === 3" class="unread">未读</span>
+            <span v-else-if="messageStatus === 4" :class="readCountText === '全部已读' ? 'read' : 'unread'">{{ readCountText }}</span>
+          </template>
         </div>
         <div class="bubble" :class="{ 'bubble-self': isSelf, 'bubble-other': !isSelf }">
           <MarkdownText v-if="isText" :content="textContent" :streaming="!!(message as any).streaming" :emojis="emojis" />
@@ -247,7 +298,17 @@ async function downloadFile() {
               <p class="file-name">{{ fileInfo.name }}</p>
               <p class="file-size">{{ fileInfo.size }}</p>
             </div>
-            <span v-if="fileInfo.url" class="file-download" :class="downloadStatus" :title="downloadStatus === 'done' ? '已下载' : '下载'" @click.stop="downloadFile">
+            <!-- 上传进度（发送中，url 尚未写入） -->
+            <span v-if="isUploading" class="file-download downloading" title="上传中">
+              <svg class="dl-progress" viewBox="0 0 28 28">
+                <circle class="dl-track" cx="14" cy="14" r="9" />
+                <circle class="dl-fill" cx="14" cy="14" r="9"
+                  :stroke-dasharray="CIRC"
+                  :stroke-dashoffset="uploadStrokeDashoffset" />
+              </svg>
+            </span>
+            <!-- 下载按钮（接收方或已发送完成） -->
+            <span v-else-if="fileInfo.url" class="file-download" :class="downloadStatus" :title="downloadStatus === 'done' ? '已下载' : '下载'" @click.stop="downloadFile">
               <svg v-if="downloadStatus === 'downloading'" class="dl-progress" viewBox="0 0 28 28">
                 <circle class="dl-track" cx="14" cy="14" r="9" />
                 <circle class="dl-fill" cx="14" cy="14" r="9"
@@ -363,6 +424,18 @@ async function downloadFile() {
 .read     { color: var(--text-muted); }
 .delivered{ color: var(--text-muted); }
 .unread   { color: var(--color-online); }
+.sending-spin {
+  color: var(--text-muted);
+  display: flex; align-items: center;
+}
+.sending-spin svg {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.send-fail { color: var(--danger); display: flex; align-items: center; cursor: pointer; }
 
 /* Bubble */
 .bubble {

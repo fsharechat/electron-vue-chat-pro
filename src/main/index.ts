@@ -47,6 +47,31 @@ function createWindow(): void {
     }
   )
 
+  // 拦截外部 URL 导航（如 n-image 下载按钮触发的图片 URL），转为下载行为
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const isApp = is.dev
+      ? url.startsWith('http://localhost:')
+      : url.startsWith('file://')
+    if (!isApp) {
+      event.preventDefault()
+      mainWindow?.webContents.downloadURL(url)
+    }
+  })
+
+  // 拦截所有浏览器级下载，弹出另存为对话框
+  mainWindow.webContents.session.on('will-download', (_, item) => {
+    const filename = item.getFilename()
+    const savePath = dialog.showSaveDialogSync(mainWindow!, {
+      defaultPath: join(app.getPath('downloads'), filename),
+      filters: [{ name: 'All Files', extensions: ['*'] }]
+    })
+    if (savePath) {
+      item.setSavePath(savePath)
+    } else {
+      item.cancel()
+    }
+  })
+
   if (is.dev) {
     mainWindow.loadURL('http://localhost:9080')
   } else {
