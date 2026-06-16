@@ -70,6 +70,5 @@ export function applyMosaic(
   ctx.save()
   ctx.imageSmoothingEnabled = false
   ctx.drawImage(tmp, 0, 0, scaledW, scaledH, x, y, w, h)
-  ctx.imageSmoothingEnabled = true
   ctx.restore()
 }
