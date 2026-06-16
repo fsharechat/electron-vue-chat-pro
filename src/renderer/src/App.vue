@@ -12,7 +12,7 @@ const theme = computed(() => themeStore.isDark ? darkTheme : null)
 
 const showScreenshot = ref(false)
 const screenshotSrc = ref('')
-const screenshotOriginalBounds = ref<{ x: number; y: number; width: number; height: number } | null>(null)
+const screenshotOriginalBounds = ref<ScreenshotBounds | null>(null)
 let unsubScreenshot: (() => void) | null = null
 let unsubKbd: (() => void) | null = null
 
