@@ -6,6 +6,17 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.3.2',
+    date: '2026-06-16',
+    items: [
+      '文件下载重构：点击下载先弹出系统另存为对话框，确认路径后开始下载并显示环形进度条，完成后按钮变为绿色 ✓ 标识',
+      '修复文件下载弹出白框：旧实现使用 <a target="_blank"> 触发 Electron 新窗口，改为主进程 net.fetch 流式写入本地文件',
+      '修复切换会话后文件下载完成状态消失：改用模块级普通 Map 缓存下载状态，组件挂载时从缓存恢复',
+      '修复切换会话后消息列表不更新：移除模块级 reactive Map，改用组件本地 ref + 普通 Map，避免干扰 Vue 响应式调度',
+      '修复打包环境下位置消息定位角标不显示：高德默认 Marker 图标依赖 CDN 图片，file:// 协议下被拦截，改用内联 SVG 图标',
+    ]
+  },
+  {
     version: '1.3.1',
     date: '2026-06-15',
     items: [

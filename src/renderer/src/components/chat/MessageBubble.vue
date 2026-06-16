@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
+import { dlStateCache } from './fileDownloadStates'
 import type { ProtoMessage } from '@/types'
 import { storeToRefs } from 'pinia'
 import { useUIStore } from '@/stores/useUIStore'
@@ -155,6 +156,52 @@ function toggleAudio() {
   if (isAudioPlaying.value) { uiStore.stopAudio(); return }
   uiStore.playAudio(audioInfo.value.url, props.message.messageId, () => {})
 }
+
+// SVG 环形进度参数：r=9，圆心(14,14)，周长≈56.55
+const CIRC = 2 * Math.PI * 9
+
+const downloadStatus = ref<'idle' | 'downloading' | 'done'>('idle')
+const downloadPercent = ref(0)
+const strokeDashoffset = computed(() => CIRC * (1 - downloadPercent.value / 100))
+
+// 挂载时从持久缓存恢复状态（切换会话重新挂载时生效）
+onMounted(() => {
+  const cached = dlStateCache.get(props.message.messageId)
+  if (cached) {
+    downloadStatus.value = cached.status
+    downloadPercent.value = cached.percent
+  }
+})
+
+function setDl(status: 'idle' | 'downloading' | 'done', percent = downloadPercent.value) {
+  downloadStatus.value = status
+  downloadPercent.value = percent
+  dlStateCache.set(props.message.messageId, { status, percent })
+}
+
+async function downloadFile() {
+  const url = fileInfo.value.url
+  if (!url || downloadStatus.value === 'downloading') return
+
+  const defaultName = fileInfo.value.name || url.split('/').pop() || 'download'
+  const savePath = await window.electronAPI!.showSaveDialog(defaultName)
+  if (!savePath) return
+
+  setDl('downloading', 0)
+  const downloadId = props.message.messageId
+
+  const unsubProgress = window.electronAPI!.onFileDownloadProgress(({ downloadId: id, percent }) => {
+    if (id === downloadId) setDl('downloading', percent)
+  })
+  const unsubDone = window.electronAPI!.onFileDownloadDone(({ downloadId: id, error }) => {
+    if (id !== downloadId) return
+    unsubProgress()
+    unsubDone()
+    setDl(error ? 'idle' : 'done', error ? 0 : 100)
+  })
+
+  window.electronAPI!.startFileDownload(url, savePath, downloadId)
+}
 </script>
 
 <template>
@@ -200,7 +247,16 @@ function toggleAudio() {
               <p class="file-name">{{ fileInfo.name }}</p>
               <p class="file-size">{{ fileInfo.size }}</p>
             </div>
-            <a v-if="fileInfo.url" :href="fileInfo.url" target="_blank" class="file-download" title="下载"></a>
+            <span v-if="fileInfo.url" class="file-download" :class="downloadStatus" :title="downloadStatus === 'done' ? '已下载' : '下载'" @click.stop="downloadFile">
+              <svg v-if="downloadStatus === 'downloading'" class="dl-progress" viewBox="0 0 28 28">
+                <circle class="dl-track" cx="14" cy="14" r="9" />
+                <circle class="dl-fill" cx="14" cy="14" r="9"
+                  :stroke-dasharray="CIRC"
+                  :stroke-dashoffset="strokeDashoffset" />
+              </svg>
+              <span v-else-if="downloadStatus === 'done'" class="dl-done">✓</span>
+              <span v-else class="dl-arrow">↓</span>
+            </span>
           </div>
           <video v-else-if="isVideo"
             :src="message.content.remoteMediaUrl"
@@ -383,11 +439,24 @@ function toggleAudio() {
   width: 28px; height: 28px; border-radius: var(--radius-sm);
   background: rgba(255,255,255,0.1); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  text-decoration: none; color: rgba(255,255,255,0.7);
+  color: rgba(255,255,255,0.7); cursor: pointer;
   transition: background var(--dur-fast);
 }
-.file-download:hover { background: rgba(255,255,255,0.2); }
-.file-download::after { content: '↓'; font-size: 14px; font-weight: 600; }
+.file-download:hover:not(.downloading) { background: rgba(255,255,255,0.2); }
+.file-download.downloading { cursor: default; }
+.file-download.done { background: rgba(99,241,130,0.15); color: #6df590; }
+.dl-arrow { font-size: 14px; font-weight: 600; }
+.dl-done { font-size: 14px; font-weight: 700; }
+.dl-progress { width: 24px; height: 24px; }
+.dl-track {
+  fill: none; stroke: rgba(255,255,255,0.15); stroke-width: 2;
+}
+.dl-fill {
+  fill: none; stroke: rgba(255,255,255,0.8); stroke-width: 2;
+  stroke-linecap: round;
+  transform: rotate(-90deg); transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.2s linear;
+}
 
 /* 接收方气泡（浅色背景）颜色覆盖 */
 .bubble-other .file-size { color: var(--text-muted); }
@@ -396,7 +465,10 @@ function toggleAudio() {
   color: var(--text-secondary);
   border: 1px solid var(--border);
 }
-.bubble-other .file-download:hover { background: var(--bg-tertiary); }
+.bubble-other .file-download:hover:not(.downloading) { background: var(--bg-tertiary); }
+.bubble-other .file-download.done { background: rgba(99,241,130,0.12); color: #4caf72; border-color: #4caf72; }
+.bubble-other .dl-track { stroke: var(--border); }
+.bubble-other .dl-fill { stroke: var(--text-secondary); }
 .bubble-other .audio-icon { color: var(--text-secondary); }
 .bubble-other .unknown-msg { color: var(--text-muted); font-style: italic; }
 

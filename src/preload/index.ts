@@ -27,4 +27,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   writeImageToClipboard: (dataUrl: string): void =>
     ipcRenderer.send('write-clipboard', dataUrl),
+
+  showSaveDialog: (defaultName: string): Promise<string | null> =>
+    ipcRenderer.invoke('show-save-dialog', defaultName),
+
+  startFileDownload: (url: string, savePath: string, downloadId: string): void =>
+    ipcRenderer.send('start-file-download', { url, savePath, downloadId }),
+
+  onFileDownloadProgress: (cb: (data: { downloadId: string; percent: number }) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, data: { downloadId: string; percent: number }): void => cb(data)
+    ipcRenderer.on('file-download-progress', handler)
+    return () => ipcRenderer.removeListener('file-download-progress', handler)
+  },
+
+  onFileDownloadDone: (cb: (data: { downloadId: string; error?: string }) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, data: { downloadId: string; error?: string }): void => cb(data)
+    ipcRenderer.on('file-download-done', handler)
+    return () => ipcRenderer.removeListener('file-download-done', handler)
+  },
 })

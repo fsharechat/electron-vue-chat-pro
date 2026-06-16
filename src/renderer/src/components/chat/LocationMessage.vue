@@ -32,7 +32,15 @@ async function openMap() {
     })
     new AMap.Marker({
       position: [props.long, props.lat],
-      map: mapInstance
+      map: mapInstance,
+      // 用内联 SVG 替代默认图标，避免 file:// 协议下 CDN 图片加载失败
+      content: `<div style="position:relative;width:28px;height:36px">
+        <svg viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg" style="width:28px;height:36px;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35))">
+          <path d="M12 0C7.16 0 3.2 3.96 3.2 8.8c0 6.6 8.8 16.4 8.8 16.4s8.8-9.8 8.8-16.4C20.8 3.96 16.84 0 12 0z" fill="#E53935"/>
+          <circle cx="12" cy="9" r="3.8" fill="#fff"/>
+        </svg>
+      </div>`,
+      offset: new AMap.Pixel(-14, -36)
     })
   } catch (e) {
     console.error('地图加载失败', e)

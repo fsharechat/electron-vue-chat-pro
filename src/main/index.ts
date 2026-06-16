@@ -1,9 +1,10 @@
 import {
   app, BrowserWindow, ipcMain, Tray, Menu,
   nativeImage, globalShortcut, systemPreferences,
-  desktopCapturer, clipboard
+  desktopCapturer, clipboard, dialog, net
 } from 'electron'
 import { join } from 'path'
+import fs from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { WIN_SIZE_LOGIN, WIN_SIZE_MAIN } from './utils/common'
 
@@ -194,6 +195,40 @@ function registerIPC(): void {
 
   ipcMain.on('write-clipboard', (_, dataUrl: string) => {
     clipboard.writeImage(nativeImage.createFromDataURL(dataUrl))
+  })
+
+  ipcMain.handle('show-save-dialog', async (_, defaultName: string) => {
+    const { filePath } = await dialog.showSaveDialog({
+      defaultPath: join(app.getPath('downloads'), defaultName),
+      filters: [{ name: 'All Files', extensions: ['*'] }]
+    })
+    return filePath ?? null
+  })
+
+  ipcMain.on('start-file-download', async (event, { url, savePath, downloadId }: { url: string; savePath: string; downloadId: string }) => {
+    try {
+      const res = await net.fetch(url)
+      const total = parseInt(res.headers.get('content-length') ?? '0', 10)
+      const reader = res.body!.getReader()
+      const fileStream = fs.createWriteStream(savePath)
+      let loaded = 0
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        loaded += value.length
+        fileStream.write(Buffer.from(value))
+        if (total > 0) {
+          const percent = Math.min(99, Math.floor(loaded / total * 100))
+          event.sender.send('file-download-progress', { downloadId, percent })
+        }
+      }
+      await new Promise<void>((resolve, reject) => {
+        fileStream.end((err?: Error | null) => err ? reject(err) : resolve())
+      })
+      event.sender.send('file-download-done', { downloadId })
+    } catch (err: any) {
+      event.sender.send('file-download-done', { downloadId, error: String(err?.message ?? err) })
+    }
   })
 }
 

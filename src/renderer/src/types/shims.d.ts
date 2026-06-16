@@ -20,6 +20,10 @@ interface ElectronAPI {
   onTriggerScreenshot(cb: () => void): () => void
   getScreenSources(): Promise<Array<{ id: string; name: string; thumbnail: string }>>
   writeImageToClipboard(dataUrl: string): void
+  showSaveDialog(defaultName: string): Promise<string | null>
+  startFileDownload(url: string, savePath: string, downloadId: string): void
+  onFileDownloadProgress(cb: (data: { downloadId: string; percent: number }) => void): () => void
+  onFileDownloadDone(cb: (data: { downloadId: string; error?: string }) => void): () => void
 }
 
 interface Window {
