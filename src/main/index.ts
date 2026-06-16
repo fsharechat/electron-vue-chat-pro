@@ -1,7 +1,7 @@
 import {
   app, BrowserWindow, ipcMain, Tray, Menu,
   nativeImage, globalShortcut, systemPreferences,
-  desktopCapturer, clipboard, dialog, net
+  desktopCapturer, clipboard, dialog, net, screen
 } from 'electron'
 import { join } from 'path'
 import fs from 'fs'
@@ -201,25 +201,26 @@ function registerIPC(): void {
     }
   })
 
-  ipcMain.handle('get-screen-sources', async () => {
-    try {
-      const sources = await desktopCapturer.getSources({
-        types: ['screen'],
-        thumbnailSize: { width: 1920, height: 1080 }
-      })
-      return sources.map(s => ({
-        id: s.id,
-        name: s.name,
-        thumbnail: s.thumbnail.toDataURL()
-      }))
-    } catch (err) {
-      console.warn('[desktopCapturer] getSources failed:', err)
-      return []
-    }
-  })
-
   ipcMain.on('write-clipboard', (_, dataUrl: string) => {
     clipboard.writeImage(nativeImage.createFromDataURL(dataUrl))
+  })
+
+  ipcMain.on('start-screenshot', (_, { hideWindow }: { hideWindow: boolean }) => {
+    captureScreenshot(hideWindow).catch(err => console.error('[screenshot]', err))
+  })
+
+  ipcMain.on('screenshot-done', (_, originalBounds: Electron.Rectangle) => {
+    if (!mainWindow) return
+    mainWindow.setAlwaysOnTop(false)
+    mainWindow.setBounds(originalBounds)
+    mainWindow.setResizable(logined)
+  })
+
+  ipcMain.on('screenshot-cancel', (_, originalBounds: Electron.Rectangle) => {
+    if (!mainWindow) return
+    mainWindow.setAlwaysOnTop(false)
+    mainWindow.setBounds(originalBounds)
+    mainWindow.setResizable(logined)
   })
 
   ipcMain.handle('show-save-dialog', async (_, defaultName: string) => {
@@ -257,9 +258,49 @@ function registerIPC(): void {
   })
 }
 
+async function captureScreenshot(hideWindow: boolean): Promise<void> {
+  if (!mainWindow) return
+  const originalBounds = mainWindow.getBounds()
+
+  if (hideWindow) {
+    mainWindow.hide()
+    await new Promise<void>(r => setTimeout(r, 150))
+  }
+
+  const primaryDisplay = screen.getPrimaryDisplay()
+  const { x, y, width, height } = primaryDisplay.bounds
+  const scaleFactor = primaryDisplay.scaleFactor
+
+  let screenshotDataUrl = ''
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: {
+        width: Math.round(width * scaleFactor),
+        height: Math.round(height * scaleFactor)
+      }
+    })
+    if (sources.length > 0) screenshotDataUrl = sources[0].thumbnail.toDataURL()
+  } catch (err) {
+    console.warn('[screenshot] desktopCapturer failed:', err)
+  }
+
+  if (!screenshotDataUrl) {
+    if (hideWindow) { mainWindow.show(); mainWindow.focus() }
+    return
+  }
+
+  mainWindow.setAlwaysOnTop(true, 'screen-saver')
+  mainWindow.setBounds({ x, y, width, height })
+  mainWindow.show()
+  mainWindow.focus()
+
+  mainWindow.webContents.send('trigger-screenshot', { screenshotDataUrl, originalBounds })
+}
+
 function registerScreenshotShortcut(): void {
   const ok = globalShortcut.register('Ctrl+Alt+Z', () => {
-    mainWindow?.webContents.send('trigger-screenshot')
+    mainWindow?.webContents.send('kbd-screenshot')
   })
   if (!ok) console.warn('[shortcut] Ctrl+Alt+Z could not be registered')
 }

@@ -16,14 +16,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setFlashTray: (flash: boolean): void =>
     ipcRenderer.send('hasFlashTray', flash),
 
-  onTriggerScreenshot: (cb: () => void): (() => void) => {
+  startScreenshot: (hideWindow: boolean): void =>
+    ipcRenderer.send('start-screenshot', { hideWindow }),
+
+  onKbdScreenshot: (cb: () => void): (() => void) => {
     const handler = (): void => cb()
+    ipcRenderer.on('kbd-screenshot', handler)
+    return () => ipcRenderer.removeListener('kbd-screenshot', handler)
+  },
+
+  onTriggerScreenshot: (cb: (data: { screenshotDataUrl: string; originalBounds: { x: number; y: number; width: number; height: number } }) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, data: { screenshotDataUrl: string; originalBounds: { x: number; y: number; width: number; height: number } }): void => cb(data)
     ipcRenderer.on('trigger-screenshot', handler)
     return () => ipcRenderer.removeListener('trigger-screenshot', handler)
   },
 
-  getScreenSources: (): Promise<Array<{ id: string; name: string; thumbnail: string }>> =>
-    ipcRenderer.invoke('get-screen-sources'),
+  screenshotDone: (originalBounds: { x: number; y: number; width: number; height: number }): void =>
+    ipcRenderer.send('screenshot-done', originalBounds),
+
+  screenshotCancel: (originalBounds: { x: number; y: number; width: number; height: number }): void =>
+    ipcRenderer.send('screenshot-cancel', originalBounds),
 
   writeImageToClipboard: (dataUrl: string): void =>
     ipcRenderer.send('write-clipboard', dataUrl),
