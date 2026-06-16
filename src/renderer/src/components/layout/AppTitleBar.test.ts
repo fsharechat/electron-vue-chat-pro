@@ -8,7 +8,6 @@ const mockElectronAPI = {
   onIsLogged: vi.fn(() => vi.fn()),
   setFlashTray: vi.fn(),
   onTriggerScreenshot: vi.fn(() => vi.fn()),
-  getScreenSources: vi.fn(),
   writeImageToClipboard: vi.fn(),
 }
 

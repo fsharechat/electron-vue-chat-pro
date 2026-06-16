@@ -20,7 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('start-screenshot', { hideWindow }),
 
   onKbdScreenshot: (cb: () => void): (() => void) => {
-    const handler = (): void => cb()
+    const handler = (_: Electron.IpcRendererEvent): void => cb()
     ipcRenderer.on('kbd-screenshot', handler)
     return () => ipcRenderer.removeListener('kbd-screenshot', handler)
   },
