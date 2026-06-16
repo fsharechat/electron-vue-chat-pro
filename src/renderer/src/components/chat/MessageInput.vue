@@ -296,7 +296,7 @@ async function sendImage(file: File) {
     m.content = finalMc
     sendToServer(m)
     msgStore.updateSendMessage({ messageId: protoMsg.messageId, messageContent: finalMc })
-  } catch (e) { console.error('Image send failed', e) }
+  } catch (e) { console.error('Image send failed', e); throw e }
 }
 
 function getImageThumbnail(file: File): Promise<string> {
@@ -688,7 +688,7 @@ function onPaste(e: ClipboardEvent) {
   position: absolute;
   bottom: calc(100% + 6px);
   left: 0;
-  background: var(--bg-float, #2a2a3a);
+  background: var(--bg-float);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: 0 4px 16px var(--shadow);
