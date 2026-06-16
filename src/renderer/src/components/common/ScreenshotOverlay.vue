@@ -27,6 +27,7 @@ const startX = ref(0), startY = ref(0), endX = ref(0), endY = ref(0)
 // ── Phase 2: annotation ──────────────────────────────────────────
 const activeTool = ref<AnnotationTool | null>('rect')
 const activeColor = ref('#f5222d')
+const MAX_UNDO = 20
 const undoStack: ImageData[] = []
 let toolDrawing = false
 let toolStartX = 0, toolStartY = 0
@@ -75,6 +76,8 @@ function resizeCanvases(): void {
   if (bg) { bg.width = window.innerWidth; bg.height = window.innerHeight }
   if (ann) { ann.width = window.innerWidth; ann.height = window.innerHeight }
   drawBg()
+  undoStack.length = 0
+  previewSnapshot = null
 }
 
 // ── Phase 1: mouse handlers ───────────────────────────────────────
@@ -124,7 +127,9 @@ function saveUndoSnapshot(): void {
 }
 
 function pushUndo(): void {
-  if (previewSnapshot) undoStack.push(previewSnapshot)
+  if (!previewSnapshot) return
+  if (undoStack.length >= MAX_UNDO) undoStack.shift()
+  undoStack.push(previewSnapshot)
 }
 
 function handleUndo(): void {
@@ -270,7 +275,7 @@ function handleCancel(): void {
 function onWindowKeydown(e: KeyboardEvent): void {
   if (!props.show) return
   if (e.key === 'Escape') {
-    if (isTextEditing.value) { isTextEditing.value = false; return }
+    if (isTextEditing.value) { textValue.value = ''; isTextEditing.value = false; return }
     if (phase.value === 'annotating') { handleCancel(); return }
     emit('cancel')
   }
@@ -285,6 +290,7 @@ watch(() => props.show, (v) => {
     nextTick(resizeCanvases)
   } else {
     bgImage = null
+    phase.value = 'cropping'
   }
 })
 
