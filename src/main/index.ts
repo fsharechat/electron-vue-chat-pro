@@ -1,14 +1,20 @@
 import {
   app, BrowserWindow, ipcMain, Tray, Menu,
   nativeImage, globalShortcut, systemPreferences,
-  desktopCapturer, clipboard, dialog, net, screen
+  desktopCapturer, clipboard, dialog, net, screen, shell
 } from 'electron'
 import { join } from 'path'
+import { tmpdir } from 'os'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import fs from 'fs'
 import { is } from '@electron-toolkit/utils'
+
+const execFileAsync = promisify(execFile)
 import { WIN_SIZE_LOGIN, WIN_SIZE_MAIN } from './utils/common'
 
 let mainWindow: BrowserWindow | null = null
+let overlayWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let logined = false
 let forceQuit = false
@@ -209,18 +215,15 @@ function registerIPC(): void {
     captureScreenshot(hideWindow).catch(err => console.error('[screenshot]', err))
   })
 
-  ipcMain.on('screenshot-done', (_, originalBounds: Electron.Rectangle) => {
-    if (!mainWindow) return
-    mainWindow.setAlwaysOnTop(false)
-    mainWindow.setBounds(originalBounds)
-    mainWindow.setResizable(logined)
+  ipcMain.on('screenshot-done', (event, dataUrl: string) => {
+    if (event.sender !== overlayWindow?.webContents) return
+    overlayWindow.hide()
+    if (dataUrl) mainWindow?.webContents.send('screenshot-result', dataUrl)
   })
 
-  ipcMain.on('screenshot-cancel', (_, originalBounds: Electron.Rectangle) => {
-    if (!mainWindow) return
-    mainWindow.setAlwaysOnTop(false)
-    mainWindow.setBounds(originalBounds)
-    mainWindow.setResizable(logined)
+  ipcMain.on('screenshot-cancel', (event) => {
+    if (event.sender !== overlayWindow?.webContents) return
+    overlayWindow.hide()
   })
 
   ipcMain.handle('show-save-dialog', async (_, defaultName: string) => {
@@ -260,7 +263,6 @@ function registerIPC(): void {
 
 async function captureScreenshot(hideWindow: boolean): Promise<void> {
   if (!mainWindow) return
-  const originalBounds = mainWindow.getBounds()
 
   if (hideWindow) {
     mainWindow.hide()
@@ -272,30 +274,112 @@ async function captureScreenshot(hideWindow: boolean): Promise<void> {
   const scaleFactor = primaryDisplay.scaleFactor
 
   let screenshotDataUrl = ''
-  try {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: {
-        width: Math.round(width * scaleFactor),
-        height: Math.round(height * scaleFactor)
+  let permissionDenied = false
+
+  if (process.platform === 'darwin') {
+    // macOS: 用系统 screencapture 命令获取原始 Retina 分辨率截图
+    // 注意：不依赖 getMediaAccessStatus('screen')，该 API 对屏幕录制不实时，
+    // 权限状态要等 screencapture 实际执行后才可靠。
+    const tmpPath = join(tmpdir(), `fshare-ss-${Date.now()}.png`)
+    try {
+      await execFileAsync('screencapture', ['-x', tmpPath])
+      const buf = fs.readFileSync(tmpPath)
+      // screencapture 权限被拒时会生成 < 1 KB 的空白文件
+      if (buf.length > 1024) {
+        screenshotDataUrl = `data:image/png;base64,${buf.toString('base64')}`
+      } else {
+        permissionDenied = true
       }
-    })
-    if (sources.length > 0) screenshotDataUrl = sources[0].thumbnail.toDataURL()
-  } catch (err) {
-    console.warn('[screenshot] desktopCapturer failed:', err)
+    } catch (err) {
+      console.warn('[screenshot] screencapture failed:', err)
+      permissionDenied = true
+    } finally {
+      try { fs.unlinkSync(tmpPath) } catch {}
+    }
+  }
+
+  if (!screenshotDataUrl) {
+    // 非 macOS 或 screencapture 失败时，回退到 desktopCapturer
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: {
+          width: Math.round(width * scaleFactor),
+          height: Math.round(height * scaleFactor)
+        }
+      })
+      if (sources.length > 0) {
+        const thumb = sources[0].thumbnail
+        // 权限被拒时 thumbnail 为 1x1 空图
+        if (thumb.getSize().width > 1) {
+          screenshotDataUrl = thumb.toDataURL()
+          permissionDenied = false
+        }
+      }
+    } catch (err) {
+      console.warn('[screenshot] desktopCapturer failed:', err)
+    }
   }
 
   if (!screenshotDataUrl) {
     if (hideWindow) { mainWindow.show(); mainWindow.focus() }
+    if (permissionDenied && process.platform === 'darwin') {
+      const { response } = await dialog.showMessageBox(mainWindow!, {
+        type: 'warning',
+        title: '需要屏幕录制权限',
+        message: '飞享IM 需要屏幕录制权限才能截图。',
+        detail: '请前往「系统设置 → 隐私与安全性 → 屏幕录制」，打开飞享IM 的权限开关，然后重启应用。',
+        buttons: ['打开系统设置', '取消'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      if (response === 0) {
+        shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+      }
+    }
     return
   }
 
-  mainWindow.setAlwaysOnTop(true, 'screen-saver')
-  mainWindow.setBounds({ x, y, width, height })
-  mainWindow.show()
-  mainWindow.focus()
+  // hideWindow=true 时窗口被隐藏用于截图，现在恢复显示
+  if (hideWindow) { mainWindow.show(); mainWindow.focus() }
 
-  mainWindow.webContents.send('trigger-screenshot', { screenshotDataUrl, originalBounds })
+  // 主窗口完全不动，截图 overlay 在独立窗口中显示
+  if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow()
+  if (overlayWindow!.webContents.isLoading()) {
+    await new Promise<void>(r => overlayWindow!.webContents.once('did-finish-load', r))
+  }
+
+  const { x: dx, y: dy, width: dw, height: dh } = screen.getPrimaryDisplay().bounds
+  overlayWindow!.setBounds({ x: dx, y: dy, width: dw, height: dh })
+  overlayWindow!.webContents.send('trigger-screenshot', { screenshotDataUrl })
+  overlayWindow!.show()
+  overlayWindow!.focus()
+}
+
+function createOverlayWindow(): void {
+  const { x, y, width, height } = screen.getPrimaryDisplay().bounds
+  overlayWindow = new BrowserWindow({
+    x, y, width, height,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    }
+  })
+
+  if (is.dev) {
+    overlayWindow.loadURL('http://localhost:9080?overlay=1')
+  } else {
+    overlayWindow.loadFile(join(__dirname, '../renderer/index.html'), { query: { overlay: '1' } })
+  }
+
+  overlayWindow.on('closed', () => { overlayWindow = null })
 }
 
 function registerScreenshotShortcut(): void {

@@ -25,17 +25,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('kbd-screenshot', handler)
   },
 
-  onTriggerScreenshot: (cb: (data: { screenshotDataUrl: string; originalBounds: { x: number; y: number; width: number; height: number } }) => void): (() => void) => {
-    const handler = (_: Electron.IpcRendererEvent, data: { screenshotDataUrl: string; originalBounds: { x: number; y: number; width: number; height: number } }): void => cb(data)
+  onTriggerScreenshot: (cb: (data: { screenshotDataUrl: string }) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, data: { screenshotDataUrl: string }): void => cb(data)
     ipcRenderer.on('trigger-screenshot', handler)
     return () => ipcRenderer.removeListener('trigger-screenshot', handler)
   },
 
-  screenshotDone: (originalBounds: { x: number; y: number; width: number; height: number }): void =>
-    ipcRenderer.send('screenshot-done', originalBounds),
+  screenshotDone: (dataUrl: string): void =>
+    ipcRenderer.send('screenshot-done', dataUrl),
 
-  screenshotCancel: (originalBounds: { x: number; y: number; width: number; height: number }): void =>
-    ipcRenderer.send('screenshot-cancel', originalBounds),
+  screenshotCancel: (): void =>
+    ipcRenderer.send('screenshot-cancel'),
+
+  onScreenshotResult: (cb: (dataUrl: string) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, dataUrl: string): void => cb(dataUrl)
+    ipcRenderer.on('screenshot-result', handler)
+    return () => ipcRenderer.removeListener('screenshot-result', handler)
+  },
 
   writeImageToClipboard: (dataUrl: string): void =>
     ipcRenderer.send('write-clipboard', dataUrl),

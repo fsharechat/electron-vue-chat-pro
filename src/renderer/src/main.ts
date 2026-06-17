@@ -9,8 +9,10 @@ import { installConsoleTimestamp } from './websocket/utils/logger'
 
 installConsoleTimestamp()
 
+const isOverlay = new URLSearchParams(window.location.search).has('overlay')
+
 const app = createApp(App)
 app.use(createPinia())
-app.use(router)
+if (!isOverlay) app.use(router)
 app.use(naive)
 app.mount('#app')

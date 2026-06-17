@@ -6,6 +6,15 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.3.4',
+    date: '2026-06-17',
+    items: [
+      '截图重构：overlay 迁移至独立 BrowserWindow（无边框、透明、alwaysOnTop），触发截图时主窗口完全不移动、不改变尺寸',
+      '修复截图权限误报：移除 getMediaAccessStatus 前置门卫，改为先执行 screencapture，失败后再弹权限提示，消除 TCC 缓存导致的误判',
+      '修复点击发送后输入框内容未立即清除：在异步上传前快照文本与图片，立即清空 UI，不再等待服务端返回',
+    ]
+  },
+  {
     version: '1.3.3',
     date: '2026-06-16',
     items: [

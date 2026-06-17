@@ -12,13 +12,6 @@ declare module '*.vue' {
   export default component
 }
 
-interface ScreenshotBounds {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
 interface ElectronAPI {
   windowControl(action: 'minimize' | 'maximize' | 'close'): void
   setLoggedIn(isLogged: boolean): void
@@ -26,9 +19,10 @@ interface ElectronAPI {
   setFlashTray(flash: boolean): void
   startScreenshot(hideWindow: boolean): void
   onKbdScreenshot(cb: () => void): () => void
-  onTriggerScreenshot(cb: (data: { screenshotDataUrl: string; originalBounds: ScreenshotBounds }) => void): () => void
-  screenshotDone(originalBounds: ScreenshotBounds): void
-  screenshotCancel(originalBounds: ScreenshotBounds): void
+  onTriggerScreenshot(cb: (data: { screenshotDataUrl: string }) => void): () => void
+  screenshotDone(dataUrl: string): void
+  screenshotCancel(): void
+  onScreenshotResult(cb: (dataUrl: string) => void): () => void
   writeImageToClipboard(dataUrl: string): void
   showSaveDialog(defaultName: string): Promise<string | null>
   startFileDownload(url: string, savePath: string, downloadId: string): void

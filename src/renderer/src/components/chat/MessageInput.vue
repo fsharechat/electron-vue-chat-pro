@@ -218,26 +218,30 @@ async function send() {
   const hasText = !!content.value.trim()
   const hasImage = !!pendingImage.value
   if (!hasText && !hasImage) { message.warning('不能发送空白信息'); return }
+
+  // 在清空前快照数据，清空 UI 不依赖异步结果
+  const imageFile = pendingImage.value?.file ?? null
+  const textSnapshot = hasText ? content.value : ''
+  const mentionData = hasText ? extractMentions() : null
+
+  if (hasImage) clearPendingImage()
+  if (hasText) content.value = ''
+  showAtMenu.value = false
+  textareaRef.value?.focus()
+
   try {
-    if (hasImage) {
-      const file = pendingImage.value!.file
+    if (hasImage && imageFile) {
       try {
-        await sendImage(file)
-        clearPendingImage()
+        await sendImage(imageFile)
       } catch (e) {
         console.error('Image send failed', e)
         message.error('图片发送失败，请重试')
-        return
       }
     }
-    if (hasText) {
-      const { mentionedType, mentionedTargets } = extractMentions()
-      const mc = new TextMessageContent(content.value, mentionedType, mentionedTargets)
+    if (hasText && textSnapshot && mentionData) {
+      const mc = new TextMessageContent(textSnapshot, mentionData.mentionedType, mentionData.mentionedTargets)
       buildAndSend(mc)
-      content.value = ''
     }
-    showAtMenu.value = false
-    textareaRef.value?.focus()
   } catch (e) { console.error('Send failed', e) }
 }
 
