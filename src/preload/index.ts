@@ -63,4 +63,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('file-download-done', handler)
     return () => ipcRenderer.removeListener('file-download-done', handler)
   },
+
+  onWindowFocusChange: (cb: (focused: boolean) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, focused: boolean): void => cb(focused)
+    ipcRenderer.on('win-focus-change', handler)
+    return () => ipcRenderer.removeListener('win-focus-change', handler)
+  },
 })

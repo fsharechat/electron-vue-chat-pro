@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.3.5',
+    date: '2026-07-07',
+    items: [
+      '修复当前会话在窗口不可见/失焦时收不到新消息通知：新增原生 focus/blur 事件监听，结合 document.visibilityState 综合判断应用是否真正可见，不再仅依赖被窗口挡住时不会触发的 Page Visibility API',
+    ]
+  },
+  {
     version: '1.3.4',
     date: '2026-06-17',
     items: [

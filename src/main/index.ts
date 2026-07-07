@@ -95,6 +95,9 @@ function createWindow(): void {
     }, 2000)
   })
 
+  mainWindow.on('focus', () => mainWindow?.webContents.send('win-focus-change', true))
+  mainWindow.on('blur', () => mainWindow?.webContents.send('win-focus-change', false))
+
   mainWindow.on('close', (e) => {
     if (logined && !forceQuit) {
       e.preventDefault()

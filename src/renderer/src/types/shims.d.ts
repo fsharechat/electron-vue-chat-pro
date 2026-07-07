@@ -28,6 +28,7 @@ interface ElectronAPI {
   startFileDownload(url: string, savePath: string, downloadId: string): void
   onFileDownloadProgress(cb: (data: { downloadId: string; percent: number }) => void): () => void
   onFileDownloadDone(cb: (data: { downloadId: string; error?: string }) => void): () => void
+  onWindowFocusChange(cb: (focused: boolean) => void): () => void
 }
 
 interface Window {

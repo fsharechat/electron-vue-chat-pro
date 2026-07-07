@@ -18,6 +18,8 @@ const message = useMessage()
 
 function onVisibility() { uiStore.visibilityChange(document.visibilityState) }
 
+let offWindowFocusChange: (() => void) | undefined
+
 onMounted(() => {
   window.electronAPI?.setLoggedIn(true)
   authStore.initData((isError, msg) => {
@@ -25,9 +27,13 @@ onMounted(() => {
     else message.info(msg)
   })
   document.addEventListener('visibilitychange', onVisibility)
+  offWindowFocusChange = window.electronAPI?.onWindowFocusChange(uiStore.setWindowFocused)
 })
 
-onUnmounted(() => document.removeEventListener('visibilitychange', onVisibility))
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibility)
+  offWindowFocusChange?.()
+})
 </script>
 
 <template>

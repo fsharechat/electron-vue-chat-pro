@@ -97,9 +97,9 @@ export const useMessageStore = defineStore('message', () => {
       const uiStore = useUIStore()
       if (!uiStore.firstLogin && protoMessage.direction === 1) {
         const isCurrentConv = protoMessage.target === convStore.selectTarget
-        const isTabVisible = uiStore.visibilityState === 'visible'
-        // 非当前会话，或当前会话但 tab 已切走时，均累加未读
-        if (!isCurrentConv || !isTabVisible) {
+        const isAppVisible = uiStore.isAppVisible
+        // 非当前会话，或当前会话但应用不可见/未聚焦时，均累加未读
+        if (!isCurrentConv || !isAppVisible) {
           const sc = convStore.conversations.find(c => c.conversationInfo.target === protoMessage.target)
           const isSilent = sc?.conversationInfo.isSilent ?? false
           // 免打扰时不播放提示音

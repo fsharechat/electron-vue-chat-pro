@@ -13,6 +13,7 @@ export const useUIStore = defineStore('ui', () => {
   const firstLogin = ref(false)
   const appHeight = ref(638)
   const visibilityState = ref('visible')
+  const windowFocused = ref(true)
   const showChatBox = ref(false)
   const showAudioBox = ref(false)
   const showSearchFriendDialog = ref(false)
@@ -149,6 +150,10 @@ export const useUIStore = defineStore('ui', () => {
   function setOnlineStatus(status: boolean) { onlineStatus.value = status }
   function setFirstLogin(val: boolean) { firstLogin.value = val }
   function visibilityChange(state: string) { visibilityState.value = state }
+  function setWindowFocused(focused: boolean) { windowFocused.value = focused }
+  // 页面级 visibilitychange 在 Electron 中只反映窗口是否最小化/隐藏，
+  // 窗口失去系统焦点（被其他应用挡住但仍可见）时不会触发，需结合原生 focus/blur 事件
+  const isAppVisible = computed(() => visibilityState.value === 'visible' && windowFocused.value)
   function playMsgNotify(title?: string, body?: string) {
     try { _notify?.player?.() } catch (e) {}
     window.electronAPI?.setFlashTray(true)
@@ -210,7 +215,7 @@ export const useUIStore = defineStore('ui', () => {
     if (protoMessage.conversationType === 0) {
       vueSocket?.uploadDeliveryReport(Date.now(), protoMessage.target)
     }
-    if (convStore.selectTarget === protoMessage.target && visibilityState.value === 'visible') {
+    if (convStore.selectTarget === protoMessage.target && isAppVisible.value) {
       const tos = protoMessage.conversationType === 1
         ? groupStore.groupSendMessageUserMap.get(protoMessage.target)
         : undefined
@@ -230,14 +235,14 @@ export const useUIStore = defineStore('ui', () => {
   watch(stateMessageReports, val => LocalStore.setMessageReports(val), { deep: true })
 
   return {
-    onlineStatus, firstLogin, appHeight, visibilityState,
+    onlineStatus, firstLogin, appHeight, visibilityState, windowFocused, isAppVisible,
     showChatBox, showAudioBox, showSearchFriendDialog, showCreateGroupDialog,
     showRelayMessageDialog, showGroupCallVideoDialog, showGroupInfo,
     showMessageRightMenu, currentRightMenuMessage, waitUserIds,
     emptyMessage, isWinMaxed, stateMessageReports, groupCallMembers,
     minuteTick, userInfoList, emojis, unreadTotalCount,
     currentAudioMessageId,
-    initNotify, setVueSocket, setOnlineStatus, setFirstLogin, visibilityChange,
+    initNotify, setVueSocket, setOnlineStatus, setFirstLogin, visibilityChange, setWindowFocused,
     updateUserInfos, addMessageReport, uploadReport, playMsgNotify,
     playAudio, stopAudio, reset,
   }
