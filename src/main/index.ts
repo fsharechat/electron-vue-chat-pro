@@ -214,6 +214,10 @@ function registerIPC(): void {
     clipboard.writeImage(nativeImage.createFromDataURL(dataUrl))
   })
 
+  ipcMain.on('write-text-clipboard', (_, text: string) => {
+    clipboard.writeText(text)
+  })
+
   ipcMain.on('start-screenshot', (_, { hideWindow }: { hideWindow: boolean }) => {
     captureScreenshot(hideWindow).catch(err => console.error('[screenshot]', err))
   })

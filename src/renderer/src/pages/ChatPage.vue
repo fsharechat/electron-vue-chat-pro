@@ -62,10 +62,8 @@ async function onContextMenuSelect(key: string) {
   } else if (key === 'relay') {
     uiStore.currentRightMenuMessage = msg; uiStore.showRelayMessageDialog = true
   } else if (key === 'copy') {
-    try {
-      const text = msg.content?.searchableContent ?? msg.content?.content ?? ''
-      if (text) navigator.clipboard.writeText(text)
-    } catch { message.error('复制失败') }
+    const text = msg.content?.searchableContent ?? msg.content?.content ?? ''
+    if (text) window.electronAPI?.writeTextToClipboard(text)
   } else if (key === 'download') {
     const url = msg.content?.remoteMediaUrl || msg.content?.remotePath
     if (url) {

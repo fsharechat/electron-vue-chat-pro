@@ -46,6 +46,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeImageToClipboard: (dataUrl: string): void =>
     ipcRenderer.send('write-clipboard', dataUrl),
 
+  writeTextToClipboard: (text: string): void =>
+    ipcRenderer.send('write-text-clipboard', text),
+
   showSaveDialog: (defaultName: string): Promise<string | null> =>
     ipcRenderer.invoke('show-save-dialog', defaultName),
 

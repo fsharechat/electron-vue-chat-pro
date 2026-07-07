@@ -46,6 +46,8 @@ src/
 
 **IPC 约定**：渲染进程只能通过 `window.electronAPI` 调用主进程功能（`src/types/shims.d.ts` 有完整类型声明）。新增主进程能力时需同时修改 preload/index.ts 和 shims.d.ts。
 
+**剪贴板操作必须走主进程 IPC，禁止在渲染进程用 `navigator.clipboard`**：`mainWindow.webContents.session.setPermissionRequestHandler()`（`src/main/index.ts`）只放行 `camera/microphone/media/audioCapture/videoCapture/notifications`，未包含 `clipboard-sanitized-write`，因此 `navigator.clipboard.writeText()` 会被 Chromium 拒绝（`NotAllowedError: Write permission denied`），窗口失焦时还会额外报 `Document is not focused`。正确做法是复用 `write-clipboard`（图片，`clipboard.writeImage`）/`write-text-clipboard`（文本，`clipboard.writeText`）这类 preload→ipcMain→Electron `clipboard` 模块的通道，主进程剪贴板 API 不受浏览器权限模型和文档焦点限制。
+
 ## 渲染进程架构
 
 ```

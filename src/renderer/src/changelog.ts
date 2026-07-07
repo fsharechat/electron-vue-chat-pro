@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.3.6',
+    date: '2026-07-07',
+    items: [
+      '修复右键菜单"复制文本"无效：navigator.clipboard.writeText 被主进程权限白名单拒绝（且窗口失焦时还会报 Document not focused），改为走 preload → ipcMain → Electron clipboard 模块写入，不再受浏览器权限与窗口焦点限制',
+    ]
+  },
+  {
     version: '1.3.5',
     date: '2026-07-07',
     items: [
