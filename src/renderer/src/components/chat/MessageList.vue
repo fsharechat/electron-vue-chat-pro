@@ -171,14 +171,16 @@ async function toggleInfoPanel() {
         <div class="loading-dot" style="animation-delay:.15s"></div>
         <div class="loading-dot" style="animation-delay:.3s"></div>
       </div>
-      <MessageBubble
-        v-for="(msg, idx) in selectedChat.protoMessages"
-        :key="(msg as any).messageId"
-        :message="msg as any"
-        :prev-message="idx > 0 ? (selectedChat.protoMessages[idx - 1] as any) : undefined"
-        @contextmenu="(e: MouseEvent) => emit('context-menu', e, msg)"
-        @avatar-click="onAvatarClick"
-      />
+      <n-image-group>
+        <MessageBubble
+          v-for="(msg, idx) in selectedChat.protoMessages"
+          :key="(msg as any).messageId"
+          :message="msg as any"
+          :prev-message="idx > 0 ? (selectedChat.protoMessages[idx - 1] as any) : undefined"
+          @contextmenu="(e: MouseEvent) => emit('context-menu', e, msg)"
+          @avatar-click="onAvatarClick"
+        />
+      </n-image-group>
     </div>
 
     <!-- 滚动到底部徽标 -->
