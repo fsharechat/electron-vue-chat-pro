@@ -312,8 +312,9 @@ async function downloadFile() {
           <n-image v-else-if="isImage"
             :src="bubbleImageSrc"
             :preview-src="message.content.remoteMediaUrl ?? thumbnailSrc"
-            :img-props="{ style: 'max-width:200px;max-height:200px;width:auto;height:auto;object-fit:contain;border-radius:4px;display:block' }"
+            :img-props="{ style: 'max-width:200px;max-height:200px;width:auto;height:auto;border-radius:4px;display:block' }"
             lazy
+            :intersection-observer-options="{}"
             @load="onThumbnailLoad"
           />
           <div v-else-if="isFile" class="file-msg">

@@ -171,7 +171,7 @@ async function toggleInfoPanel() {
         <div class="loading-dot" style="animation-delay:.15s"></div>
         <div class="loading-dot" style="animation-delay:.3s"></div>
       </div>
-      <n-image-group>
+      <n-image-group :key="selectTarget">
         <MessageBubble
           v-for="(msg, idx) in selectedChat.protoMessages"
           :key="(msg as any).messageId"
