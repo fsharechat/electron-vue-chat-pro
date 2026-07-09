@@ -290,7 +290,8 @@ async function downloadFile() {
           <n-image v-else-if="isImage"
             :src="thumbnailSrc || message.content.remoteMediaUrl"
             :preview-src="message.content.remoteMediaUrl ?? thumbnailSrc"
-            width="160" style="border-radius:4px;display:block"
+            :img-props="{ style: 'max-width:200px;max-height:200px;width:auto;height:auto;object-fit:contain;border-radius:4px;display:block' }"
+            lazy
           />
           <div v-else-if="isFile" class="file-msg">
             <div class="file-icon"></div>
