@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
 import { dlStateCache } from './fileDownloadStates'
 import type { ProtoMessage } from '@/types'
@@ -103,6 +103,28 @@ const thumbnailSrc = computed(() => {
   const b = props.message.content.binaryContent
   return b ? `data:image/png;base64,${b}` : ''
 })
+
+const hasBecomeVisible = ref(false)
+const upgradedSrc = ref('')
+
+function onThumbnailLoad() {
+  hasBecomeVisible.value = true
+}
+
+watch(
+  [hasBecomeVisible, () => props.message.content.remoteMediaUrl],
+  ([visible, url]) => {
+    if (!visible || !thumbnailSrc.value || !url || upgradedSrc.value === url) return
+    const img = new Image()
+    img.onload = () => { upgradedSrc.value = url }
+    img.src = url
+  },
+  { immediate: true }
+)
+
+const bubbleImageSrc = computed(() =>
+  upgradedSrc.value || thumbnailSrc.value || props.message.content.remoteMediaUrl
+)
 
 const audioInfo = computed(() => {
   try {
@@ -288,10 +310,11 @@ async function downloadFile() {
             </div>
           </div>
           <n-image v-else-if="isImage"
-            :src="thumbnailSrc || message.content.remoteMediaUrl"
+            :src="bubbleImageSrc"
             :preview-src="message.content.remoteMediaUrl ?? thumbnailSrc"
             :img-props="{ style: 'max-width:200px;max-height:200px;width:auto;height:auto;object-fit:contain;border-radius:4px;display:block' }"
             lazy
+            @load="onThumbnailLoad"
           />
           <div v-else-if="isFile" class="file-msg">
             <div class="file-icon"></div>
