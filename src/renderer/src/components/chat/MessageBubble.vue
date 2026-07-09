@@ -25,6 +25,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'contextmenu', event: MouseEvent): void
   (e: 'avatar-click', userId: string, x: number, y: number): void
+  (e: 'image-loaded'): void
 }>()
 
 const uiStore = useUIStore()
@@ -109,6 +110,7 @@ const upgradedSrc = ref('')
 
 function onThumbnailLoad() {
   hasBecomeVisible.value = true
+  emit('image-loaded') // 图片实际渲染出来会改变气泡高度，通知外层按需重新贴底
 }
 
 watch(

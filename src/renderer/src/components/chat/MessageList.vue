@@ -69,6 +69,11 @@ watch(incomingMsgTrigger, () => {
   if (isAtBottom.value) scrollToBottom()
   else unreadBadge.value++
 })
+// 图片消息懒加载完成后气泡高度变化：若当前停留在底部则重新贴底
+// （否则切到有图片的会话时，图片尚未进入可视区域触发懒加载，scrollToBottom 会按未撑开的高度计算而停在半途）
+function onImageLoaded() {
+  if (isAtBottom.value) scrollToBottom()
+}
 // tab 切回来：清除当前会话未读角标；切走时停止语音播放
 watch(() => uiStore.visibilityState, (state) => {
   if (state === 'visible') convStore.clearUnreadStatus()
@@ -179,6 +184,7 @@ async function toggleInfoPanel() {
           :prev-message="idx > 0 ? (selectedChat.protoMessages[idx - 1] as any) : undefined"
           @contextmenu="(e: MouseEvent) => emit('context-menu', e, msg)"
           @avatar-click="onAvatarClick"
+          @image-loaded="onImageLoaded"
         />
       </n-image-group>
     </div>
