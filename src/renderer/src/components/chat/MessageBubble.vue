@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue'
+import { fitImageBox } from './imageBox'
 import { useMessage, useDialog } from 'naive-ui'
 import { dlStateCache } from './fileDownloadStates'
 import type { ProtoMessage } from '@/types'
@@ -108,7 +109,21 @@ const thumbnailSrc = computed(() => {
 const hasBecomeVisible = ref(false)
 const upgradedSrc = ref('')
 
-function onThumbnailLoad() {
+// 首次(缩略图)加载后锁定显示框;原图稍后到达时框不再变化
+const imgBox = ref<{ w: number; h: number } | null>(null)
+const imageImgProps = computed(() => {
+  const base = 'border-radius:4px;display:block'
+  if (imgBox.value) {
+    return { style: `width:${imgBox.value.w}px;height:${imgBox.value.h}px;object-fit:cover;${base}` }
+  }
+  return { style: `max-width:200px;max-height:200px;width:auto;height:auto;${base}` }
+})
+
+function onThumbnailLoad(e?: Event) {
+  const img = e?.target as HTMLImageElement | undefined
+  if (!imgBox.value && img?.naturalWidth) {
+    imgBox.value = fitImageBox(img.naturalWidth, img.naturalHeight)
+  }
   hasBecomeVisible.value = true
   emit('image-loaded') // 图片实际渲染出来会改变气泡高度，通知外层按需重新贴底
 }
@@ -314,7 +329,7 @@ async function downloadFile() {
           <n-image v-else-if="isImage"
             :src="bubbleImageSrc"
             :preview-src="message.content.remoteMediaUrl ?? thumbnailSrc"
-            :img-props="{ style: 'max-width:200px;max-height:200px;width:auto;height:auto;border-radius:4px;display:block' }"
+            :img-props="imageImgProps"
             lazy
             :intersection-observer-options="{}"
             @load="onThumbnailLoad"
@@ -391,6 +406,9 @@ async function downloadFile() {
   margin: 4px 20px;
   font-size: 11.5px;
   color: var(--text-muted);
+  /* 视口外跳过渲染与布局,只按记忆尺寸(首次为 60px 估值)占位,解决超长消息会话切换卡顿 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
 }
 .notification-bar span {
   background: var(--bg-elevated);
@@ -407,6 +425,9 @@ async function downloadFile() {
   padding: 2px 20px;
   gap: 10px;
   transition: background var(--dur-fast);
+  /* 视口外跳过渲染与布局,只按记忆尺寸(首次为 60px 估值)占位,解决超长消息会话切换卡顿 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
 }
 .message-row:hover { background: rgba(255,255,255,0.015); }
 .message-row.self { flex-direction: row-reverse; }

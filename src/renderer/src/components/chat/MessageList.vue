@@ -51,14 +51,32 @@ function checkAtBottom(el: HTMLElement) {
 
 function scrollToBottom() {
   autoScrolling = true
-  nextTick(() => requestAnimationFrame(() => {
-    if (listRef.value) {
-      listRef.value.scrollTop = listRef.value.scrollHeight
-      isAtBottom.value = true
-      unreadBadge.value = 0
+  nextTick(() => {
+    // 气泡开启 content-visibility 后,视口外的行按估值占位,首次贴底后
+    // 新进入视口的行真实渲染会撑开高度,需连续几帧重新钉底直到收敛
+    let tries = 0
+    const pin = () => {
+      const el = listRef.value
+      if (el) {
+        el.scrollTop = el.scrollHeight
+        isAtBottom.value = true
+        unreadBadge.value = 0
+      }
+      if (el && ++tries < 10) {
+        requestAnimationFrame(() => {
+          const cur = listRef.value
+          if (cur && cur.scrollHeight - cur.scrollTop - cur.clientHeight > 1) {
+            pin()
+          } else {
+            setTimeout(() => { autoScrolling = false }, 100)
+          }
+        })
+      } else {
+        setTimeout(() => { autoScrolling = false }, 100)
+      }
     }
-    setTimeout(() => { autoScrolling = false }, 100)
-  }))
+    requestAnimationFrame(pin)
+  })
 }
 
 watch(scrollBottomTrigger, () => scrollToBottom())
