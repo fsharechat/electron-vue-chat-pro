@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { fitImageBox } from './imageBox'
+import { imgStateCache } from './imageStateCache'
 
 // 图片消息显示框:以缩略图自然尺寸按 200x200 约束算出后锁定,
 // 原图加载后只换内容不改变框,避免气泡跳变
@@ -20,5 +21,13 @@ describe('fitImageBox', () => {
     const box = fitImageBox(4000, 10)
     expect(box.w).toBe(200)
     expect(box.h).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('imgStateCache', () => {
+  it('按 messageId 读写图片显示状态', () => {
+    imgStateCache.set('msg-1', { box: { w: 120, h: 90 }, upgradedSrc: 'http://x/1.png' })
+    expect(imgStateCache.get('msg-1')).toEqual({ box: { w: 120, h: 90 }, upgradedSrc: 'http://x/1.png' })
+    expect(imgStateCache.get('msg-nonexistent')).toBeUndefined()
   })
 })

@@ -3,6 +3,7 @@ import { computed, ref, watch, onMounted } from 'vue'
 import { fitImageBox } from './imageBox'
 import { useMessage, useDialog } from 'naive-ui'
 import { dlStateCache } from './fileDownloadStates'
+import { imgStateCache } from './imageStateCache'
 import type { ProtoMessage } from '@/types'
 import { storeToRefs } from 'pinia'
 import { useUIStore } from '@/stores/useUIStore'
@@ -26,7 +27,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'contextmenu', event: MouseEvent): void
   (e: 'avatar-click', userId: string, x: number, y: number): void
-  (e: 'image-loaded'): void
+  (e: 'image-click', message: ProtoMessage): void
 }>()
 
 const uiStore = useUIStore()
@@ -106,11 +107,13 @@ const thumbnailSrc = computed(() => {
   return b ? `data:image/png;base64,${b}` : ''
 })
 
-const hasBecomeVisible = ref(false)
-const upgradedSrc = ref('')
+// 从缓存恢复(虚拟列表重挂场景);有缓存说明此前已进入过视口
+const cachedImg = imgStateCache.get(props.message.messageId)
+const hasBecomeVisible = ref(!!cachedImg)
+const upgradedSrc = ref(cachedImg?.upgradedSrc ?? '')
 
 // 首次(缩略图)加载后锁定显示框;原图稍后到达时框不再变化
-const imgBox = ref<{ w: number; h: number } | null>(null)
+const imgBox = ref<{ w: number; h: number } | null>(cachedImg?.box ?? null)
 const imageImgProps = computed(() => {
   const base = 'border-radius:4px;display:block'
   if (imgBox.value) {
@@ -119,13 +122,17 @@ const imageImgProps = computed(() => {
   return { style: `max-width:200px;max-height:200px;width:auto;height:auto;${base}` }
 })
 
+function persistImgState() {
+  imgStateCache.set(props.message.messageId, { box: imgBox.value, upgradedSrc: upgradedSrc.value })
+}
+
 function onThumbnailLoad(e?: Event) {
   const img = e?.target as HTMLImageElement | undefined
   if (!imgBox.value && img?.naturalWidth) {
     imgBox.value = fitImageBox(img.naturalWidth, img.naturalHeight)
+    persistImgState()
   }
   hasBecomeVisible.value = true
-  emit('image-loaded') // 图片实际渲染出来会改变气泡高度，通知外层按需重新贴底
 }
 
 watch(
@@ -133,7 +140,10 @@ watch(
   ([visible, url]) => {
     if (!visible || !thumbnailSrc.value || !url || upgradedSrc.value === url) return
     const img = new Image()
-    img.onload = () => { upgradedSrc.value = url }
+    img.onload = () => {
+      upgradedSrc.value = url
+      persistImgState()
+    }
     img.src = url
   },
   { immediate: true }
@@ -317,7 +327,7 @@ async function downloadFile() {
           </template>
         </div>
         <div class="bubble" :class="{ 'bubble-self': isSelf, 'bubble-other': !isSelf }">
-          <MarkdownText v-if="isText" :content="textContent" :streaming="!!(message as any).streaming" :emojis="emojis" />
+          <MarkdownText v-if="isText" :content="textContent" :streaming="!!(message as any).streaming" :message-id="message.messageId" :emojis="emojis" />
           <div v-else-if="isAudio" class="audio-msg" :style="{ width: audioMsgWidth }" @click="toggleAudio">
             <span class="audio-duration">{{ audioInfo.duration }}"</span>
             <div class="audio-icon" :class="{ playing: isAudioPlaying }">
@@ -326,14 +336,14 @@ async function downloadFile() {
               <span class="bar"></span>
             </div>
           </div>
-          <n-image v-else-if="isImage"
-            :src="bubbleImageSrc"
-            :preview-src="message.content.remoteMediaUrl ?? thumbnailSrc"
-            :img-props="imageImgProps"
-            lazy
-            :intersection-observer-options="{}"
-            @load="onThumbnailLoad"
-          />
+          <div v-else-if="isImage" class="img-msg" @click.stop="emit('image-click', message)">
+            <n-image
+              :src="bubbleImageSrc"
+              :img-props="imageImgProps"
+              preview-disabled
+              @load="onThumbnailLoad"
+            />
+          </div>
           <div v-else-if="isFile" class="file-msg">
             <div class="file-icon"></div>
             <div class="file-info">
@@ -511,6 +521,8 @@ async function downloadFile() {
   text-underline-offset: 2px;
   word-break: break-all;
 }
+
+.img-msg { cursor: zoom-in; }
 
 /* Audio */
 .audio-msg {

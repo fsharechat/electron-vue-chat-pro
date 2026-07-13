@@ -9,7 +9,6 @@ export const useConversationStore = defineStore('conversation', () => {
   const conversations = ref<StateConversationInfo[]>([])
   const selectTarget = ref(LocalStore.getSelectTarget() ?? '')
   const searchText = ref('')
-  const isLoadRemoteMessage = ref(false)
   const atMeSet = ref<Set<string>>(new Set())
 
   const searchedConversationList = computed(() =>
@@ -22,7 +21,6 @@ export const useConversationStore = defineStore('conversation', () => {
   })
 
   function selectConversation(target: string) {
-    isLoadRemoteMessage.value = false
     selectTarget.value = target
     atMeSet.value.delete(target)
     const c = conversations.value.find(c => c.conversationInfo.target === target)
@@ -165,14 +163,13 @@ export const useConversationStore = defineStore('conversation', () => {
     conversations.value = []
     selectTarget.value = ''
     searchText.value = ''
-    isLoadRemoteMessage.value = false
   }
 
   watch(conversations, val => LocalStore.saveConverSations(val), { deep: true })
   watch(selectTarget, val => LocalStore.setSelectTarget(val))
 
   return {
-    conversations, selectTarget, searchText, isLoadRemoteMessage, atMeSet,
+    conversations, selectTarget, searchText, atMeSet,
     searchedConversationList, isSingleConversation,
     selectConversation, clearUnreadStatus, updateConversationInfo,
     updateConversationIntro, topConversation, unTopConversation,

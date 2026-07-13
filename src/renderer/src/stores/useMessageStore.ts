@@ -62,7 +62,6 @@ export const useMessageStore = defineStore('message', () => {
         if (!existing) {
           if (chat.protoMessages.length > CONVERSATION_MAX_MESSAGE_SIZE) {
             chat.protoMessages.splice(0, chat.protoMessages.length - CONVERSATION_MAX_MESSAGE_SIZE)
-            convStore.isLoadRemoteMessage = false
           }
           chat.protoMessages.push(protoMessage)
           // 收到新消息（direction=1）且是当前会话，通知 MessageList 更新徽标
@@ -161,8 +160,6 @@ export const useMessageStore = defineStore('message', () => {
       messages.value.push(chat)
     } else if (chat.protoMessages.length > CONVERSATION_MAX_MESSAGE_SIZE) {
       chat.protoMessages.splice(0, chat.protoMessages.length - CONVERSATION_MAX_MESSAGE_SIZE)
-      // Reset so MessageList's length watcher won't try to restore historical scroll position
-      useConversationStore().isLoadRemoteMessage = false
     }
     // If a streaming virtual message is already in the list, insert the new outgoing
     // message before it so the streaming bubble stays at the bottom and remains visible.

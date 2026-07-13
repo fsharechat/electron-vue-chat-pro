@@ -8,15 +8,19 @@ const PREVIEW_LENGTH = 280
 // 注意必须放在普通 <script> 块(模块作用域),<script setup> 顶层代码是每实例执行的
 const MAX_CACHE_SIZE = 100
 const parseCache = new Map<string, string>()
+
+// 「展开全文」状态按消息持久(虚拟列表卸载重挂时恢复)
+const expandedIds = new Set<string>()
 </script>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { marked } from 'marked'
 
 const props = defineProps<{
   content: string
   streaming?: boolean
+  messageId?: string
   emojis?: { file: string; code: string; reg: RegExp }[]
 }>()
 
@@ -30,8 +34,14 @@ function replaceFace(text: string) {
 }
 
 const isCollapsible = computed(() => !props.streaming && (props.content?.length ?? 0) > COLLAPSE_THRESHOLD)
-// streaming 中挂载的消息(AI 流式回复)保持展开,结束后也不突然收起
-const expanded = ref(!!props.streaming)
+// streaming 中挂载的消息(AI 流式回复)保持展开,结束后也不突然收起;
+// 非 streaming 时从模块级 Set 恢复上次的展开状态
+const expanded = ref(!!props.streaming || (props.messageId ? expandedIds.has(props.messageId) : false))
+watch(expanded, (v) => {
+  if (!props.messageId) return
+  if (v) expandedIds.add(props.messageId)
+  else expandedIds.delete(props.messageId)
+})
 const collapsed = computed(() => isCollapsible.value && !expanded.value)
 
 const previewText = computed(() => (props.content ?? '').slice(0, PREVIEW_LENGTH) + '…')

@@ -9,6 +9,8 @@ import { useGroupStore } from '@/stores/useGroupStore'
 import webSocketClient from '@/websocket/websocketcli'
 import { SUCCESS_CODE } from '@/constant'
 import MessageBubble from './MessageBubble.vue'
+import ChatVirtualList from './virtual/ChatVirtualList.vue'
+import ImageViewer from './ImageViewer.vue'
 import GroupInfo from '@/components/group/GroupInfo.vue'
 import UserProfileCard from '@/components/common/UserProfileCard.vue'
 import Conversation from '@/websocket/model/conversation'
@@ -24,7 +26,7 @@ const groupStore = useGroupStore()
 const message = useMessage()
 
 const { selectedChat, streamingTokenCount, scrollBottomTrigger, incomingMsgTrigger } = storeToRefs(msgStore)
-const { selectTarget, isSingleConversation, isLoadRemoteMessage, conversations } = storeToRefs(convStore)
+const { selectTarget, isSingleConversation, conversations } = storeToRefs(convStore)
 const { showGroupInfo } = storeToRefs(uiStore)
 
 const chatTitle = computed(() => {
@@ -32,94 +34,40 @@ const chatTitle = computed(() => {
   return conv?.name || selectTarget.value
 })
 
-const listRef = ref<HTMLElement>()
-const isLoading = ref(false)
-
 const profileCard = ref<{ userId: string; x: number; y: number } | null>(null)
 
 function onAvatarClick(userId: string, x: number, y: number) {
   profileCard.value = { userId, x, y }
 }
+
+const vlRef = ref<InstanceType<typeof ChatVirtualList>>()
+const isLoading = ref(false)
 const isAtBottom = ref(true)
 const unreadBadge = ref(0)
-let prevScrollHeight = 0
-let autoScrolling = false
-
-function checkAtBottom(el: HTMLElement) {
-  return el.scrollHeight - el.scrollTop - el.clientHeight < 60
-}
+// 图片预览:数据源取 store 当前会话全部图片消息,与虚拟列表挂载解耦
+const viewer = ref<{ list: { id: string; src: string }[]; index: number } | null>(null)
 
 function scrollToBottom() {
-  autoScrolling = true
-  nextTick(() => {
-    // 气泡开启 content-visibility 后,视口外的行按估值占位,首次贴底后
-    // 新进入视口的行真实渲染会撑开高度,需连续几帧重新钉底直到收敛
-    let tries = 0
-    const pin = () => {
-      const el = listRef.value
-      if (el) {
-        el.scrollTop = el.scrollHeight
-        isAtBottom.value = true
-        unreadBadge.value = 0
-      }
-      if (el && ++tries < 10) {
-        requestAnimationFrame(() => {
-          const cur = listRef.value
-          if (cur && cur.scrollHeight - cur.scrollTop - cur.clientHeight > 1) {
-            pin()
-          } else {
-            setTimeout(() => { autoScrolling = false }, 100)
-          }
-        })
-      } else {
-        setTimeout(() => { autoScrolling = false }, 100)
-      }
-    }
-    requestAnimationFrame(pin)
-  })
+  nextTick(() => vlRef.value?.scrollToBottom())
 }
 
-watch(scrollBottomTrigger, () => scrollToBottom())
-watch(streamingTokenCount, () => { if (isAtBottom.value) scrollToBottom() })
-watch(selectTarget, () => { convStore.isLoadRemoteMessage = false; unreadBadge.value = 0; scrollToBottom(); uiStore.stopAudio() })
-// 收到新消息：在底部自动滚，否则徽标 +1
-watch(incomingMsgTrigger, () => {
-  if (isAtBottom.value) scrollToBottom()
-  else unreadBadge.value++
-})
-// 图片消息懒加载完成后气泡高度变化：若当前停留在底部则重新贴底
-// （否则切到有图片的会话时，图片尚未进入可视区域触发懒加载，scrollToBottom 会按未撑开的高度计算而停在半途）
-function onImageLoaded() {
-  if (isAtBottom.value) scrollToBottom()
-}
-// tab 切回来：清除当前会话未读角标；切走时停止语音播放
-watch(() => uiStore.visibilityState, (state) => {
-  if (state === 'visible') convStore.clearUnreadStatus()
-  else uiStore.stopAudio()
-})
-// 加载历史消息时恢复滚动位置；首次从0变为有消息时（刷新页面初始化）滚到底部
-watch(() => msgStore.currentMessages.length, (newLen, oldLen) => {
-  if (convStore.isLoadRemoteMessage) {
-    nextTick(() => { if (listRef.value) listRef.value.scrollTop = listRef.value.scrollHeight - prevScrollHeight })
-  } else if (oldLen === 0 && newLen > 0) {
-    scrollToBottom()
-  }
-})
-
-async function onScroll(e: Event) {
-  const el = e.target as HTMLElement
-  isAtBottom.value = checkAtBottom(el)
-  if (isAtBottom.value) {
+function onAtBottomChange(v: boolean) {
+  isAtBottom.value = v
+  if (v) {
     unreadBadge.value = 0
-    if (!autoScrolling) {
-      convStore.atMeSet.delete(selectTarget.value)
-    }
+    convStore.atMeSet.delete(selectTarget.value)
   }
-  if (el.scrollTop > 0 || isLoading.value) return
-  isLoading.value = true
-  prevScrollHeight = el.scrollHeight
+}
+
+// 触顶加载历史:captureAnchor → 拉取 → restoreAnchor 保位
+async function loadHistory() {
+  if (isLoading.value) return
   const firstMsg = selectedChat.value.protoMessages[0] as any
-  const beforeUid = firstMsg?.messageUid ?? '0'
+  if (!firstMsg) return
+  isLoading.value = true
+  vlRef.value?.captureAnchor()
+  const target = selectTarget.value // 记录发起请求时的会话身份,await 期间可能被切走
+  const beforeUid = firstMsg.messageUid ?? '0'
   const type = isSingleConversation.value ? 0 : 1
   try {
     const conv = new Conversation(type, selectedChat.value.target, 0)
@@ -128,11 +76,44 @@ async function onScroll(e: Event) {
       const parsed = JSON.parse(data.result)
       if (parsed.count > 0) {
         for (const raw of parsed.messageResponseList) msgStore.addOldMessage(ProtoMessage.toProtoMessage(raw) as any)
-        convStore.isLoadRemoteMessage = true
+        // 在途期间切走会话(或又切回来)时,锚点复位作废,避免拽离切换后的落底位置;
+        // addOldMessage 本身按 target 路由数据,不受影响
+        if (selectTarget.value === target) await vlRef.value?.restoreAnchor()
       }
     }
   } catch { } finally { isLoading.value = false }
 }
+
+function openViewer(msg: any) {
+  const list = (msgStore.currentMessages as any[])
+    .filter((m) => m.content.type === 3)
+    .map((m) => ({
+      id: m.messageId as string,
+      src: (m.content.remoteMediaUrl as string) ||
+        (m.content.binaryContent ? `data:image/png;base64,${m.content.binaryContent}` : '')
+    }))
+    .filter((i) => i.src)
+  const index = list.findIndex((i) => i.id === msg.messageId)
+  if (index >= 0) viewer.value = { list, index }
+}
+
+watch(scrollBottomTrigger, () => scrollToBottom())
+watch(streamingTokenCount, () => { if (isAtBottom.value) scrollToBottom() })
+watch(selectTarget, () => { unreadBadge.value = 0; viewer.value = null; scrollToBottom(); uiStore.stopAudio() })
+// 收到新消息：在底部自动滚，否则徽标 +1
+watch(incomingMsgTrigger, () => {
+  if (isAtBottom.value) scrollToBottom()
+  else unreadBadge.value++
+})
+// tab 切回来：清除当前会话未读角标；切走时停止语音播放
+watch(() => uiStore.visibilityState, (state) => {
+  if (state === 'visible') convStore.clearUnreadStatus()
+  else uiStore.stopAudio()
+})
+// 首次从 0 变为有消息(刷新页面初始化)滚到底部;历史加载保位已由 loadHistory 的锚定接管
+watch(() => msgStore.currentMessages.length, (newLen, oldLen) => {
+  if (oldLen === 0 && newLen > 0) scrollToBottom()
+})
 
 async function toggleInfoPanel() {
   if (showGroupInfo.value) { showGroupInfo.value = false; return }
@@ -187,25 +168,38 @@ async function toggleInfoPanel() {
       @close="profileCard = null"
     />
 
-    <!-- Messages -->
-    <div class="messages-scroll" ref="listRef" @scroll="onScroll">
-      <div v-if="isLoading" class="loading-tip">
-        <div class="loading-dot"></div>
-        <div class="loading-dot" style="animation-delay:.15s"></div>
-        <div class="loading-dot" style="animation-delay:.3s"></div>
-      </div>
-      <n-image-group :key="selectTarget">
-        <MessageBubble
-          v-for="(msg, idx) in selectedChat.protoMessages"
-          :key="(msg as any).messageId"
-          :message="msg as any"
-          :prev-message="idx > 0 ? (selectedChat.protoMessages[idx - 1] as any) : undefined"
-          @contextmenu="(e: MouseEvent) => emit('context-menu', e, msg)"
-          @avatar-click="onAvatarClick"
-          @image-loaded="onImageLoaded"
-        />
-      </n-image-group>
+    <!-- Messages(虚拟列表:只挂载可视区 ± overscan 的消息) -->
+    <div v-if="isLoading" class="loading-tip loading-float">
+      <div class="loading-dot"></div>
+      <div class="loading-dot" style="animation-delay:.15s"></div>
+      <div class="loading-dot" style="animation-delay:.3s"></div>
     </div>
+    <ChatVirtualList
+      ref="vlRef"
+      class="messages-scroll"
+      :items="selectedChat.protoMessages"
+      key-field="messageId"
+      :estimate="80"
+      @reach-top="loadHistory"
+      @at-bottom-change="onAtBottomChange"
+    >
+      <template #default="{ item, prev }">
+        <MessageBubble
+          :message="item as any"
+          :prev-message="prev as any"
+          @contextmenu="(e: MouseEvent) => emit('context-menu', e, item)"
+          @avatar-click="onAvatarClick"
+          @image-click="openViewer"
+        />
+      </template>
+    </ChatVirtualList>
+
+    <ImageViewer
+      v-if="viewer"
+      :images="viewer.list"
+      :start-index="viewer.index"
+      @close="viewer = null"
+    />
 
     <!-- 滚动到底部徽标 -->
     <Transition name="badge-fade">
@@ -268,10 +262,8 @@ async function toggleInfoPanel() {
 /* Messages */
 .messages-scroll {
   flex: 1;
-  overflow-y: auto;
   padding: 12px 0 8px;
   background: var(--bg-base);
-  overscroll-behavior: contain;
 }
 
 /* Loading dots */
@@ -281,6 +273,14 @@ async function toggleInfoPanel() {
   justify-content: center;
   gap: 5px;
   padding: 16px;
+}
+.loading-float {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  pointer-events: none;
 }
 .loading-dot {
   width: 6px; height: 6px;
