@@ -439,7 +439,6 @@ async function downloadFile() {
   content-visibility: auto;
   contain-intrinsic-size: auto 60px;
 }
-.message-row:hover { background: rgba(255,255,255,0.015); }
 .message-row.self { flex-direction: row-reverse; }
 
 .avatar-btn {

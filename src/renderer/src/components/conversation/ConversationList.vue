@@ -9,6 +9,8 @@ import ConversationItem from './ConversationItem.vue'
 const convStore = useConversationStore()
 const { searchedConversationList, selectTarget } = storeToRefs(convStore)
 
+const showScrollbar = ref(false)
+
 const menuVisible = ref(false)
 const menuX = ref(0)
 const menuY = ref(0)
@@ -52,7 +54,12 @@ function onMenuSelect(key: string) {
       <span class="panel-title">消息</span>
     </div>
     <SearchBar />
-    <div class="list-scroll">
+    <div
+      class="list-scroll"
+      :class="{ 'show-scrollbar': showScrollbar }"
+      @mouseenter="showScrollbar = true"
+      @mouseleave="showScrollbar = false"
+    >
       <TransitionGroup name="list" tag="div">
         <ConversationItem
           v-for="conv in searchedConversationList"
@@ -106,6 +113,18 @@ function onMenuSelect(key: string) {
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
+}
+.list-scroll {
+  scrollbar-color: transparent transparent;
+}
+.list-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+.list-scroll.show-scrollbar {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+.list-scroll.show-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
 }
 .empty-state {
   display: flex;
