@@ -22,6 +22,9 @@ npm run build
 # 本地打包安装包（输出到 release/）
 npm run dist          # 当前平台
 npm run dist:dir      # 仅构建目录，不打包，快速验证
+
+# 本地打包遇到签名报错时，跳过代码签名
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist
 ```
 
 ---
