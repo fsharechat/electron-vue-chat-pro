@@ -59,6 +59,11 @@ function onAtBottomChange(v: boolean) {
   }
 }
 
+function onUserScroll() {
+  if (uiStore.isAppVisible) convStore.clearUnreadStatus()
+  convStore.atMeSet.delete(selectTarget.value)
+}
+
 // 触顶加载历史:captureAnchor → 拉取 → restoreAnchor 保位
 async function loadHistory() {
   if (isLoading.value) return
@@ -182,6 +187,7 @@ async function toggleInfoPanel() {
       :estimate="80"
       @reach-top="loadHistory"
       @at-bottom-change="onAtBottomChange"
+      @user-scroll="onUserScroll"
     >
       <template #default="{ item, prev }">
         <MessageBubble

@@ -278,3 +278,20 @@ describe('ChatVirtualList scrollToBottom 延迟钉底(Bug2 回归)', () => {
     expect(el.scrollTop).toBe(200) // atBottom 守卫生效,未被拉回
   })
 })
+
+describe('ChatVirtualList wheel 驱动的 user-scroll', () => {
+  it('wheel 事件(任意方向)都 emit user-scroll', async () => {
+    const { wrapper, el } = mountList(200)
+    el.dispatchEvent(new WheelEvent('wheel', { deltaY: -50 }))
+    await nextTick()
+    expect(wrapper.emitted('user-scroll')).toHaveLength(1)
+  })
+
+  it('原生 scroll 事件(模拟 scrollToBottom/restoreAnchor 的程序化调用)不 emit user-scroll', async () => {
+    const { wrapper, el } = mountList(200)
+    el.scrollTop = 5000
+    el.dispatchEvent(new Event('scroll'))
+    await nextTick()
+    expect(wrapper.emitted('user-scroll')).toBeFalsy()
+  })
+})

@@ -15,6 +15,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'reach-top'): void
   (e: 'at-bottom-change', v: boolean): void
+  (e: 'user-scroll'): void
 }>()
 
 const scroller = ref<HTMLElement>()
@@ -58,6 +59,10 @@ function onScroll() {
   // 短会话内容不足一屏时 scrollTop 恒为 0(且 scrollToBottom 的钉底循环会手动调用 onScroll),
   // 必须叠加"内容确实超出视口"的判断,否则每次切换会话/收到消息/流式输出都会误触发 reach-top
   if (el.scrollTop < 10 && el.scrollHeight > el.clientHeight) emit('reach-top')
+}
+
+function onWheel() {
+  emit('user-scroll')
 }
 
 // —— 尺寸测量:观察每个渲染项,真实高度回写 heights ——
@@ -234,9 +239,12 @@ defineExpose({ scrollToBottom, captureAnchor, restoreAnchor, isAtBottom })
 </script>
 
 <template>
-  <div ref="scroller" class="cvl" @scroll="onScroll">
+  <div ref="scroller" class="cvl" @scroll="onScroll" @wheel="onWheel">
     <div class="cvl-total" :style="{ height: total + 'px' }">
-      <div class="cvl-window" :style="{ transform: `translateY(${range.top}px)` }">
+      <div
+        class="cvl-window"
+        :style="{ transform: `translateY(${range.top}px)` }"
+      >
         <div
           v-for="(item, i) in rendered"
           :key="keys[range.start + i]"
