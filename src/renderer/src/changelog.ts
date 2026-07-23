@@ -6,6 +6,15 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.4.1',
+    date: '2026-07-23',
+    items: [
+      '消息列表滚动即视为已读:不必等滚到底部,当前会话的未读红点与群聊「有人@我」标记会随滚动清除,不再残留',
+      '会话列表滚动条默认隐藏,仅在鼠标悬停时显示,减少列表视觉干扰',
+      '修复暗色模式下鼠标悬停消息气泡时出现的多余背景高亮',
+    ]
+  },
+  {
     version: '1.4.0',
     date: '2026-07-13',
     items: [
