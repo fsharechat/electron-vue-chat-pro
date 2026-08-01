@@ -16,6 +16,9 @@ import Message from "../websocket/message/message";
 import ProtoMessage from "../websocket/message/protomessage";
 import FscMessage from "../websocket/message/FscMessage";
 import { useMessageStore } from "../stores/useMessageStore";
+import CallTakenMessageContent from "./message/callTakenMessageContent";
+import { KEY_VUE_DEVICE_ID } from "../constant";
+import MessageContentType from "../websocket/message/messageContentType";
 
 export default class VoipClient extends OnReceiverMessageListener{
   
@@ -62,13 +65,39 @@ export default class VoipClient extends OnReceiverMessageListener{
         
     }
 
+    /** 本端用户主动挂断/拒接。只有这条路径才广播 406。 */
     cancelCall(){
+      // 406 关闭来电界面后 currentSession 已置 null，但模态框按钮在同一帧仍可点击；
+      // 同时让本方法幂等，堵住 ICE/signaling/媒体失败三个被动调用点重复触发时再发一条 Bye。
+      if(!this.currentSession || this.currentSession.callState === CallState.STATUS_IDLE){
+        return;
+      }
+      var isRinging = this.currentSession.callState === CallState.STATUS_INCOMING;
       var byeMessage = new CallByeMessageContent();
       byeMessage.callId = this.currentSession.callId;
       this.offerMessage(this.currentSession.clientId,byeMessage);
       console.log("send bye message");
+      // 只有「响铃中被本端拒接」才通知自己其他设备；通话中挂断时其他端并不在响铃。
+      if(isRinging){
+        this.sendCallTaken(CallTakenMessageContent.REASON_REJECTED);
+      }
+      this.currentSession.endCall(CallEndReason.REASON_Hangup);
+      this.currentSession = null;
+    }
+
+    /** 因收到对端 Bye 而结束。不回发 Bye，也不广播 406。 */
+    endByRemoteBye(){
       this.currentSession.endCall(CallEndReason.REASON_RemoteHangup);
       this.currentSession = null;
+    }
+
+    /** 发一条 406 给自己账号的其他设备。conversation target 仍填对端，路由由服务端按 contentType 决定。 */
+    sendCallTaken(reason){
+      var takenMessage = new CallTakenMessageContent();
+      takenMessage.callId = this.currentSession.callId;
+      takenMessage.reason = reason;
+      takenMessage.deviceId = localStorage.getItem(KEY_VUE_DEVICE_ID) || '';
+      this.offerMessage(this.currentSession.clientId,takenMessage);
     }
 
     answerCall(audioOnly){
@@ -79,6 +108,7 @@ export default class VoipClient extends OnReceiverMessageListener{
         answerTMesage.audioOnly = audioOnly;
         answerTMesage.callId = this.currentSession.callId;
         this.offerMessage(this.currentSession.clientId,answerTMesage);
+        this.sendCallTaken(CallTakenMessageContent.REASON_ANSWERED);
         this.startPreview();
     }
 
@@ -129,7 +159,10 @@ export default class VoipClient extends OnReceiverMessageListener{
      */
     onReceiveMessage(protoMessage){
       //只处理接收消息，对于同一用户不同session会话忽略
-      if(new Date().getTime() - protoMessage.timestamp < 90000 && protoMessage.direction === 1 && protoMessage.conversationType == 0){
+      // 406 是自己其他设备发来的（direction === 0），必须放行；其余信令仍只处理收到的。
+      var isSelfSyncSignal = protoMessage.direction === 0
+          && protoMessage.content.type === MessageContentType.VOIP_CONTENT_TYPE_MULTI_CLIENT_SYNC;
+      if(new Date().getTime() - protoMessage.timestamp < 90000 && (protoMessage.direction === 1 || isSelfSyncSignal) && protoMessage.conversationType == 0){
         let contentClazz = MessageConfig.getMessageContentClazz(protoMessage.content.type);
         if(contentClazz){
           let content = new contentClazz();
@@ -144,13 +177,17 @@ export default class VoipClient extends OnReceiverMessageListener{
           if(content instanceof CallStartMessageContent){
             console.log("receive call startmessage");
             if(this.currentSession && this.currentSession.callState !== CallState.STATUS_IDLE){
-              this.rejectOtherCall(content.callId,protoMessage.from);
+              // 同一通电话的重复投递：直接忽略。Electron 无 messageUid 去重，
+              // 重复 CallStart 若回 Bye 会让主叫结束通话并回发 Bye，挂断本账号所有设备。
+              if(content.callId !== this.currentSession.callId){
+                this.rejectOtherCall(content.callId,protoMessage.from);
+              }
             } else {
               this.currentSession = this.newSession(protoMessage.from,content.audioOnly,content.callId);
               this.currentSession.setState(CallState.STATUS_INCOMING);
               this.currentEngineCallback.onReceiveCall(this.currentSession);
             }
-            
+
           } else if(content instanceof CallAnswerMessageContent || content instanceof CallAnswerTMessageContent){
             this.isInitiator = false;
             if(this.currentSession  && this.currentSession.callState != CallState.STATUS_IDLE){
@@ -171,16 +208,26 @@ export default class VoipClient extends OnReceiverMessageListener{
                 if(protoMessage.from === this.currentSession.clientId && content.callId === this.currentSession.callId){
                   this.handleSignalMsg(content.payload);
                 }
-              } else {
-                 this.currentSession.endCall(CallEndReason.REASON_AcceptByOtherClient);
-                // this.currentSession.sessionCallback.didCallEndWithReason(CallEndReason.REASON_AcceptByOtherClient);
               }
             }
           } else if(content instanceof CallByeMessageContent){
              if(!this.currentSession || this.currentSession.callState === CallState.STATUS_IDLE || protoMessage.from != this.currentSession.clientId || content.callId != this.currentSession.callId){
                return;
              }
-             this.cancelCall();
+             this.endByRemoteBye();
+          } else if(content instanceof CallTakenMessageContent){
+            // 只处理自己其他设备发来的，且必须还在响铃。
+            if(protoMessage.direction === 0
+                && this.currentSession
+                && this.currentSession.callState === CallState.STATUS_INCOMING
+                && content.callId === this.currentSession.callId){
+              console.log("call taken elsewhere reason "+content.reason);
+              this.currentSession.endCall(
+                  content.reason === CallTakenMessageContent.REASON_REJECTED
+                      ? CallEndReason.REASON_RejectByOtherClient
+                      : CallEndReason.REASON_AcceptByOtherClient);
+              this.currentSession = null;
+            }
           }
         }
       }

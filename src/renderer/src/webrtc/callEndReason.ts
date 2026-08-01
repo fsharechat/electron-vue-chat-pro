@@ -9,5 +9,6 @@ export default class CallEndReason {
     static REASON_OpenCameraFailure = 'openCameraError';
     static REASON_Timeout = 'timeout';
     static REASON_AcceptByOtherClient = 'acceptByOtherClient';
+    static REASON_RejectByOtherClient = 'rejectByOtherClient';
     static REASON_AllLeft = 'allLeft';
 }

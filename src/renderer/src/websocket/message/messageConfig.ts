@@ -7,6 +7,7 @@ import UnsupportMessageContent from './unsupportMessageContent'
 import CallStartMessageContent from '../../webrtc/message/callStartMessageContent'
 import CallAnswerMessageContent from '../../webrtc/message/callAnswerMessageContent'
 import CallAnswerTMessageContent from '../../webrtc/message/callAnswerTMessageContent'
+import CallTakenMessageContent from '../../webrtc/message/callTakenMessageContent'
 import CallSignalMessageContent from '../../webrtc/message/callSignalMessageContent'
 import ImageMessageContent from './imageMessageContent'
 import CallByeMessageContent from '../../webrtc/message/callByeMessageContent'
@@ -219,6 +220,12 @@ export default class MessageConfig{
             flag: PersistFlag.Transparent,
             type: MessageContentType.VOIP_CONTENT_TYPE_ACCEPT_T,
             contentClazz: CallAnswerTMessageContent,
+        },
+        {
+            name: 'callTakenMessageContent',
+            flag: PersistFlag.Transparent,
+            type: MessageContentType.VOIP_CONTENT_TYPE_MULTI_CLIENT_SYNC,
+            contentClazz: CallTakenMessageContent,
         },
         {
             name: 'callByeMessageContent',
