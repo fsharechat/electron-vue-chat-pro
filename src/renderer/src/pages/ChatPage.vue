@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMessage } from 'naive-ui'
 import { useMessageStore } from '@/stores/useMessageStore'
 import { useConversationStore } from '@/stores/useConversationStore'
 import { useUIStore } from '@/stores/useUIStore'
+import { useCallStore } from '@/stores/useCallStore'
 import ConversationList from '@/components/conversation/ConversationList.vue'
 import MessageList from '@/components/chat/MessageList.vue'
 import MessageInput from '@/components/chat/MessageInput.vue'
@@ -23,6 +24,16 @@ const msgStore = useMessageStore()
 const convStore = useConversationStore()
 const message = useMessage()
 const { showRelayMessageDialog, showChatBox, showAudioBox } = storeToRefs(uiStore)
+
+// 通话被其他设备接走/挂掉时通话界面会静默关闭，这里补一句可见提示。
+// 放在 ChatPage 而不是通话弹窗里：弹窗此刻正在被卸载，接不到这个通知。
+const callStore = useCallStore()
+const { callEndTip } = storeToRefs(callStore)
+watch(callEndTip, (tip) => {
+  if (!tip) return
+  message.info(tip)
+  callStore.clearCallEndTip()
+})
 
 const contextMenuVisible = ref(false)
 const contextMenuX = ref(0)

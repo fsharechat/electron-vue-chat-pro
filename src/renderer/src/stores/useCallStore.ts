@@ -14,6 +14,9 @@ export const useCallStore = defineStore('call', () => {
   const callDisplayName = ref('')
   const callRemoteImg = ref('')
   const isAudioOnly = ref(true)
+  // 通话被「非本端操作」结束时留给用户的一句话提示，由页面消费后清空。
+  // 406 多端同步会静默关掉来电界面，没有这条提示用户看不出电话去哪了。
+  const callEndTip = ref('')
 
   // ── VoipClient 单例 ─────────────────────────
   const client = new VoipClient(null)
@@ -54,12 +57,25 @@ export const useCallStore = defineStore('call', () => {
       uiStore.showChatBox = false
     }
   }
-  sessionCb.didCallEndWithReason = (_reason: number) => {
+  // 只有本端没参与的结束方式才提示；本端自己挂断/拒接时用户清楚发生了什么。
+  const CALL_END_TIPS: Record<string, string> = {
+    [CallEndReason.REASON_AcceptByOtherClient]: '已在其他设备接听',
+    [CallEndReason.REASON_RejectByOtherClient]: '已在其他设备挂断',
+  }
+
+  function handleCallEnd(reason: string) {
     callState.value = CallState.STATUS_IDLE
     const uiStore = useUIStore()
     uiStore.showAudioBox = false
     uiStore.showChatBox = false
+    callEndTip.value = CALL_END_TIPS[reason] ?? ''
   }
+
+  function clearCallEndTip() {
+    callEndTip.value = ''
+  }
+
+  sessionCb.didCallEndWithReason = handleCallEnd
   sessionCb.didCreateLocalVideoTrack = (stream: MediaStream) => {
     setTimeout(() => {
       const el = document.getElementById('wxCallLocalVideo') as HTMLVideoElement | null
@@ -123,8 +139,8 @@ export const useCallStore = defineStore('call', () => {
   const isConnecting = computed(() => callState.value === CallState.STATUS_CONNECTING)
 
   return {
-    callState, callDisplayName, callRemoteImg, isAudioOnly,
+    callState, callDisplayName, callRemoteImg, isAudioOnly, callEndTip,
     isOutgoing, isIncoming, isConnected, isConnecting,
-    startCall, answerCall, cancelCall,
+    startCall, answerCall, cancelCall, handleCallEnd, clearCallEndTip,
   }
 })
