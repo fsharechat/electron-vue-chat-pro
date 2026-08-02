@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
 // voipclient.ts pulls in useMessageStore -> useUIStore, which imports this
 // audio-recorder package; it doesn't run in jsdom. Same mock used by the
 // existing useUIStore/MessageList tests.
@@ -11,6 +12,14 @@ import CallTakenMessageContent from './message/callTakenMessageContent'
 import CallStartMessageContent from './message/callStartMessageContent'
 import CallByeMessageContent from './message/callByeMessageContent'
 import MessageContentType from '../websocket/message/messageContentType'
+import { useMessageStore } from '../stores/useMessageStore'
+
+// endSession 会调 useMessageStore() 写通话记录，既有的 cancelCall / endByRemoteBye /
+// 406 用例也都会走到那里。没有 active pinia 它们会集体报
+// "getActivePinia was called with no active Pinia"，所以这里统一给每个用例配一个。
+beforeEach(() => {
+  setActivePinia(createPinia())
+})
 
 /**
  * These tests target the pure call-state bookkeeping in VoipClient:
@@ -205,5 +214,107 @@ describe('VoipClient 406 (CallTaken) receive path', () => {
 
     expect(client.currentSession).toBeUndefined()
     expect(client.currentEngineCallback.onReceiveCall).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * 通话记录状态写入：voipclient 是唯一同时知道 callId、状态迁移和结束原因的地方，
+ * 状态因此写在这一层。这些用例走真实的 messageStore，断言消息 content 被改对。
+ */
+describe('VoipClient 写本地通话记录状态', () => {
+  let client
+
+  beforeEach(() => {
+    client = makeClient()
+  })
+
+  function seedCallRecord(callId) {
+    const store = useMessageStore()
+    const content = new CallStartMessageContent(callId, 'peer-1', true)
+    store.messages.push({
+      target: 'peer-1', name: '', protoMessages: [{
+        messageId: 'msg-1', messageUid: '1', from: 'me', target: 'peer-1',
+        conversationType: 0, direction: 0, timestamp: 1000, status: 0, line: 0, tos: '',
+        content: content.encode()
+      }]
+    })
+    return store
+  }
+
+  function readRecord(store) {
+    const mc = new CallStartMessageContent()
+    mc.decode(store.messages[0].protoMessages[0].content)
+    return mc
+  }
+
+  it('接通时写 status=1 与接通时刻', () => {
+    const store = seedCallRecord('call-1')
+    makeSession(client, { callId: 'call-1', state: CallState.STATUS_CONNECTING })
+
+    client.markCallConnected()
+
+    const mc = readRecord(store)
+    expect(mc.status).toBe(1)
+    expect(mc.connectTime).toBeGreaterThan(0)
+  })
+
+  it('接通后挂断写 status=2，接通时刻保留下来供算时长', () => {
+    const store = seedCallRecord('call-1')
+    makeSession(client, { callId: 'call-1', state: CallState.STATUS_CONNECTED })
+
+    client.markCallConnected()
+    const connectTime = readRecord(store).connectTime
+    client.cancelCall()
+
+    const mc = readRecord(store)
+    expect(mc.status).toBe(2)
+    expect(mc.connectTime).toBe(connectTime)
+    expect(mc.endTime).toBeGreaterThan(0)
+  })
+
+  it('没接通就取消写 status=2 且无接通时刻 —— 渲染成「对方未接听」', () => {
+    const store = seedCallRecord('call-1')
+    makeSession(client, { callId: 'call-1', state: CallState.STATUS_OUTGOING })
+
+    client.cancelCall()
+
+    const mc = readRecord(store)
+    expect(mc.status).toBe(2)
+    expect(mc.connectTime).toBeFalsy()
+  })
+
+  it('对端 Bye 结束写 status=2', () => {
+    const store = seedCallRecord('call-1')
+    makeSession(client, { callId: 'call-1', state: CallState.STATUS_CONNECTED })
+
+    const bye = new CallByeMessageContent()
+    bye.callId = 'call-1'
+    client.onReceiveMessage(encodeProtoMessage(bye))
+
+    expect(readRecord(store).status).toBe(2)
+  })
+
+  it('其他设备接听（406）写 status=3', () => {
+    const store = seedCallRecord('call-1')
+    makeSession(client, { callId: 'call-1', state: CallState.STATUS_INCOMING })
+
+    const taken = new CallTakenMessageContent()
+    taken.callId = 'call-1'
+    taken.reason = CallTakenMessageContent.REASON_ANSWERED
+    client.onReceiveMessage(encodeProtoMessage(taken, { direction: 0, from: 'me' }))
+
+    expect(readRecord(store).status).toBe(3)
+  })
+
+  it('其他设备拒接（406 rejected）写 status=2，语义上确实没人接', () => {
+    const store = seedCallRecord('call-1')
+    makeSession(client, { callId: 'call-1', state: CallState.STATUS_INCOMING })
+
+    const taken = new CallTakenMessageContent()
+    taken.callId = 'call-1'
+    taken.reason = CallTakenMessageContent.REASON_REJECTED
+    client.onReceiveMessage(encodeProtoMessage(taken, { direction: 0, from: 'me' }))
+
+    expect(readRecord(store).status).toBe(2)
   })
 })

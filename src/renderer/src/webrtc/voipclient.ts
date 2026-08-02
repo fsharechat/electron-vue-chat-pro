@@ -81,14 +81,12 @@ export default class VoipClient extends OnReceiverMessageListener{
       if(isRinging){
         this.sendCallTaken(CallTakenMessageContent.REASON_REJECTED);
       }
-      this.currentSession.endCall(CallEndReason.REASON_Hangup);
-      this.currentSession = null;
+      this.endSession(CallEndReason.REASON_Hangup);
     }
 
     /** 因收到对端 Bye 而结束。不回发 Bye，也不广播 406。 */
     endByRemoteBye(){
-      this.currentSession.endCall(CallEndReason.REASON_RemoteHangup);
-      this.currentSession = null;
+      this.endSession(CallEndReason.REASON_RemoteHangup);
     }
 
     /** 发一条 406 给自己账号的其他设备。conversation target 仍填对端，路由由服务端按 contentType 决定。 */
@@ -98,6 +96,36 @@ export default class VoipClient extends OnReceiverMessageListener{
       takenMessage.reason = reason;
       takenMessage.deviceId = localStorage.getItem(KEY_VUE_DEVICE_ID) || '';
       this.offerMessage(this.currentSession.clientId,takenMessage);
+    }
+
+    /** ICE 接通：本地通话记录写「通话中」，并记下接通时刻供结束时算时长。 */
+    markCallConnected(){
+      if(!this.currentSession){
+        return;
+      }
+      this.currentSession.connectTime = new Date().getTime();
+      useMessageStore().updateCallStatus(this.currentSession.callId, {
+        status: 1,
+        connectTime: this.currentSession.connectTime
+      });
+    }
+
+    /**
+     * 结束通话的唯一出口。状态写入只挂这一处，新增结束路径时不会漏。
+     * status 与 Android 对齐：只有「其他设备接听」写 3，其余（本端挂断、对端 Bye、
+     * 其他设备拒接、超时、媒体/信令失败）一律 2，靠 connectTime 区分有没有真接通。
+     */
+    endSession(reason){
+      if(!this.currentSession){
+        return;
+      }
+      var session = this.currentSession;
+      useMessageStore().updateCallStatus(session.callId, {
+        status: reason === CallEndReason.REASON_AcceptByOtherClient ? 3 : 2,
+        endTime: new Date().getTime()
+      });
+      session.endCall(reason);
+      this.currentSession = null;
     }
 
     answerCall(audioOnly){
@@ -222,11 +250,10 @@ export default class VoipClient extends OnReceiverMessageListener{
                 && this.currentSession.callState === CallState.STATUS_INCOMING
                 && content.callId === this.currentSession.callId){
               console.log("call taken elsewhere reason "+content.reason);
-              this.currentSession.endCall(
+              this.endSession(
                   content.reason === CallTakenMessageContent.REASON_REJECTED
                       ? CallEndReason.REASON_RejectByOtherClient
                       : CallEndReason.REASON_AcceptByOtherClient);
-              this.currentSession = null;
             }
           }
         }
@@ -417,7 +444,8 @@ export default class VoipClient extends OnReceiverMessageListener{
     
         switch(this.myPeerConnection.iceConnectionState) {
             case "connected":
-                this.currentSession.setState(CallState.STATUS_CONNECTED); 
+                this.currentSession.setState(CallState.STATUS_CONNECTED);
+                this.markCallConnected();
               break;
             case "closed":
             case "failed":

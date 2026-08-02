@@ -5,6 +5,7 @@ export default class CallSession{
     clientId;
     audioOnly;
     startTime;
+    connectTime;
     sessionCallback;
     callState;
     voipClient;
