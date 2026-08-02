@@ -18,6 +18,7 @@ import TimeUtils from '@/websocket/utils/timeUtils'
 import Utils from '@/websocket/utils/utils'
 import FscMessage from '@/websocket/message/FscMessage'
 import webSocketClient from '@/websocket/websocketcli'
+import { callRecordText } from '@/webrtc/callRecordText'
 
 const props = defineProps<{
   message: ProtoMessage
@@ -93,7 +94,16 @@ const voipText = computed(() => {
   if (!isVoip.value) return ''
   try {
     const mc = MessageConfig.convert2MessageContent(props.message.from, props.message.content) as any
-    return mc?.digest?.() ?? '[语音通话]'
+    if (!mc) return '[语音通话]'
+    // 单聊通话记录显示结束状态；群聊多人通话拿到 null，回退到摘要
+    const record = callRecordText({
+      conversationType: props.message.conversationType,
+      contentType: props.message.content.type,
+      status: mc.status,
+      connectTime: mc.connectTime,
+      endTime: mc.endTime
+    })
+    return record ?? (mc.digest?.() ?? '[语音通话]')
   } catch { return '[语音通话]' }
 })
 
