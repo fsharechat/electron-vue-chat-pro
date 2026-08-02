@@ -223,6 +223,36 @@ export const useMessageStore = defineStore('message', () => {
     }
   }
 
+  /**
+   * 就地更新本地通话记录的状态（Android 同款：0 未接听 / 1 通话中 / 2 已结束 /
+   * 3 已在其他设备接听）。只改本地消息，不发网络 —— 服务端存的仍是主叫发出时的
+   * 原始内容，换设备或清缓存后状态会回到初始值，这与 Android 的行为一致。
+   *
+   * patch 是增量语义：没传的字段保持原值，结束时才不会冲掉接通时刻。
+   */
+  function updateCallStatus(
+    callId: string,
+    patch: { status: number; connectTime?: number; endTime?: number }
+  ) {
+    for (const chat of messages.value) {
+      for (const msg of chat.protoMessages as any[]) {
+        // conversationType 这一条是群聊不被误伤的保险：群通话发的是同一种 CallStart
+        if (msg.conversationType !== 0) continue
+        if (msg.content?.type !== MessageContentType.VOIP_CONTENT_TYPE_START) continue
+        if (msg.content?.content !== callId) continue
+
+        const mc: any = MessageConfig.convert2MessageContent(msg.from, msg.content)
+        // decode 失败（binaryContent 缺失等）返回 null，放弃更新好过写坏消息
+        if (!mc) return
+        mc.status = patch.status
+        if (patch.connectTime !== undefined) mc.connectTime = patch.connectTime
+        if (patch.endTime !== undefined) mc.endTime = patch.endTime
+        msg.content = mc.encode()
+        return
+      }
+    }
+  }
+
   function appendStreamingContent(payload: { streamId: string; delta: string; isDone: boolean; target: string }) {
     const { streamId, delta, isDone, target } = payload
     if (!streamingMap.value[streamId]) {
@@ -289,7 +319,7 @@ export const useMessageStore = defineStore('message', () => {
     messages, fileDownloadStatus, streamingMap, streamingTokenCount, pendingReplacementTargets,
     selectedChat, currentMessages,
     addProtoMessage, preAddProtoMessage, addOldMessage, deleteMessage,
-    updateMessageContent, updateProtoMessageUid, updateMessageStatus,
+    updateMessageContent, updateProtoMessageUid, updateMessageStatus, updateCallStatus,
     appendStreamingContent, setFileDownloadStatus, updateSendMessage,
     scrollBottomTrigger, triggerScrollBottom,
     incomingMsgTrigger, triggerIncoming,
