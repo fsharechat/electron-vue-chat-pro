@@ -66,7 +66,9 @@ export const useAuthStore = defineStore('auth', () => {
     const convs = LocalStore.getConversations()
     if (convs) conversationStore.conversations = convs
     const msgs = LocalStore.getMessages()
-    if (msgs) messageStore.messages = msgs
+    // 用 hydrateMessages 而不是直接赋值：它会把回灌进来、卡在「通话中」状态的
+    // 通话记录归一成「已结束」，详见 useMessageStore.ts 里的说明。
+    if (msgs) messageStore.hydrateMessages(msgs)
     const target = LocalStore.getSelectTarget()
     if (target) conversationStore.selectTarget = target
     const userInfos = LocalStore.getUserInfoList()

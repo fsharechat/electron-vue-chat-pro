@@ -317,4 +317,42 @@ describe('VoipClient 写本地通话记录状态', () => {
 
     expect(readRecord(store).status).toBe(2)
   })
+
+  it('重复调用 markCallConnected 不覆盖首次的 connectTime', () => {
+    const store = seedCallRecord('call-1')
+    makeSession(client, { callId: 'call-1', state: CallState.STATUS_CONNECTING })
+
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1000)
+      client.markCallConnected()
+      const firstConnectTime = readRecord(store).connectTime
+      expect(firstConnectTime).toBe(1000)
+
+      // 模拟 ICE connected → completed → connected 这种不经过 disconnected 的
+      // 回跳：markCallConnected 会被再次调用，不应该覆盖首次接通时刻。
+      vi.setSystemTime(5000)
+      client.markCallConnected()
+
+      const mc = readRecord(store)
+      expect(mc.connectTime).toBe(firstConnectTime)
+      expect(mc.status).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('ICE 状态变为 connected 时通过 handleICEConnectionStateChangeEvent 真正接上 markCallConnected', () => {
+    const store = seedCallRecord('call-1')
+    makeSession(client, { callId: 'call-1', state: CallState.STATUS_CONNECTING })
+    // 不用真的 RTCPeerConnection，只给 handleICEConnectionStateChangeEvent
+    // 读取 iceConnectionState 需要的最小形状。
+    client.myPeerConnection = { iceConnectionState: 'connected' }
+
+    client.handleICEConnectionStateChangeEvent()
+
+    const mc = readRecord(store)
+    expect(mc.status).toBe(1)
+    expect(mc.connectTime).toBeGreaterThan(0)
+  })
 })

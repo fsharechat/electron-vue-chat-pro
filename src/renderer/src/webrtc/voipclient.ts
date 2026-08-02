@@ -19,6 +19,7 @@ import { useMessageStore } from "../stores/useMessageStore";
 import CallTakenMessageContent from "./message/callTakenMessageContent";
 import { KEY_VUE_DEVICE_ID } from "../constant";
 import MessageContentType from "../websocket/message/messageContentType";
+import { CALL_STATUS_CONNECTED, CALL_STATUS_ENDED, CALL_STATUS_TAKEN_ELSEWHERE } from "./callRecordText";
 
 export default class VoipClient extends OnReceiverMessageListener{
   
@@ -98,14 +99,26 @@ export default class VoipClient extends OnReceiverMessageListener{
       this.offerMessage(this.currentSession.clientId,takenMessage);
     }
 
-    /** ICE 接通：本地通话记录写「通话中」，并记下接通时刻供结束时算时长。 */
+    /**
+     * ICE 接通：本地通话记录写「通话中」，并记下接通时刻供结束时算时长。
+     * 唯一调用点在 handleICEConnectionStateChangeEvent 里，紧跟在
+     * `this.currentSession.setState(...)` 之后——currentSession 为空时那一行
+     * 会先抛 TypeError，这里的判空实际不可达。保留它是为了防御未来新增的
+     * 调用路径（比如测试直接调用本方法），成本很低，不删。
+     */
     markCallConnected(){
       if(!this.currentSession){
         return;
       }
+      // 去重守卫：ICE 状态可能出现 connected → completed → connected 这类
+      // 不经过 disconnected 的回跳，markCallConnected 会被再次触发。
+      // connectTime 一旦记过就不再覆盖，否则时长会被静默算短。
+      if(this.currentSession.connectTime){
+        return;
+      }
       this.currentSession.connectTime = new Date().getTime();
       useMessageStore().updateCallStatus(this.currentSession.callId, {
-        status: 1,
+        status: CALL_STATUS_CONNECTED,
         connectTime: this.currentSession.connectTime
       });
     }
@@ -121,7 +134,7 @@ export default class VoipClient extends OnReceiverMessageListener{
       }
       var session = this.currentSession;
       useMessageStore().updateCallStatus(session.callId, {
-        status: reason === CallEndReason.REASON_AcceptByOtherClient ? 3 : 2,
+        status: reason === CallEndReason.REASON_AcceptByOtherClient ? CALL_STATUS_TAKEN_ELSEWHERE : CALL_STATUS_ENDED,
         endTime: new Date().getTime()
       });
       session.endCall(reason);

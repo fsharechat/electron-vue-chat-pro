@@ -12,6 +12,7 @@ import MessageConfig from '@/websocket/message/messageConfig'
 import RecallMessageNotification from '@/websocket/message/notification/recallMessageNotification'
 import MessageContentType from '@/websocket/message/messageContentType'
 import webSocketClient from '@/websocket/websocketcli'
+import { CALL_STATUS_CONNECTED, CALL_STATUS_ENDED } from '@/webrtc/callRecordText'
 
 export const useMessageStore = defineStore('message', () => {
   const messages = ref<StateChatMessage[]>([])
@@ -253,6 +254,40 @@ export const useMessageStore = defineStore('message', () => {
     }
   }
 
+  /**
+   * 把本地缓存里卡在「通话中」(status=1) 的通话记录归一成「已结束」(status=2)。
+   * status=1 是 markCallConnected 写的瞬态，靠 endSession 收尾；但通话进行中应用
+   * 崩溃/被杀时 endSession 永远不会跑，watch(messages) 已经把这条瞬态记录原样
+   * 落了盘。只在启动回灌时兜底，运行期这条记录本就该由 endSession 自己收尾。
+   * 不动 connectTime/endTime：确实接通过，只是时长丢了，缺 endTime 时渲染成
+   * 「通话时长 00:00」，比永远显示「通话中」更诚实。
+   */
+  function normalizeStaleCallStatus(chats: StateChatMessage[]) {
+    for (const chat of chats) {
+      for (const msg of chat.protoMessages as any[]) {
+        if (msg.conversationType !== 0) continue
+        if (msg.content?.type !== MessageContentType.VOIP_CONTENT_TYPE_START) continue
+        const mc: any = MessageConfig.convert2MessageContent(msg.from, msg.content)
+        if (!mc) continue
+        if (mc.status === CALL_STATUS_CONNECTED) {
+          mc.status = CALL_STATUS_ENDED
+          msg.content = mc.encode()
+        }
+      }
+    }
+  }
+
+  /**
+   * 应用启动回灌本地消息的唯一入口（替代直接赋值 messages.value）。
+   * 放在 store 而不是 useAuthStore 或 LocalStore：LocalStore 是纯 KV 存取，不该
+   * 懂 CallStart 的 payload 结构；useAuthStore 只做编排。这里已经是
+   * updateCallStatus 读写同一份 CallStart 编解码逻辑的地方，归一化放在一起最省心。
+   */
+  function hydrateMessages(chats: StateChatMessage[]) {
+    normalizeStaleCallStatus(chats)
+    messages.value = chats
+  }
+
   function appendStreamingContent(payload: { streamId: string; delta: string; isDone: boolean; target: string }) {
     const { streamId, delta, isDone, target } = payload
     if (!streamingMap.value[streamId]) {
@@ -320,6 +355,7 @@ export const useMessageStore = defineStore('message', () => {
     selectedChat, currentMessages,
     addProtoMessage, preAddProtoMessage, addOldMessage, deleteMessage,
     updateMessageContent, updateProtoMessageUid, updateMessageStatus, updateCallStatus,
+    hydrateMessages,
     appendStreamingContent, setFileDownloadStatus, updateSendMessage,
     scrollBottomTrigger, triggerScrollBottom,
     incomingMsgTrigger, triggerIncoming,
