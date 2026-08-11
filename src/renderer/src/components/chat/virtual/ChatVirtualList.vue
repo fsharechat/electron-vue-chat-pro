@@ -61,8 +61,22 @@ function onScroll() {
   if (el.scrollTop < 10 && el.scrollHeight > el.clientHeight) emit('reach-top')
 }
 
-function onWheel() {
+// wheel 触发 reach-top 的节流:一次连续手势会派发几十个 wheel,避免打出重复请求
+let lastWheelTopAt = 0
+
+function onWheel(e: WheelEvent) {
   emit('user-scroll')
+  const el = scroller.value
+  if (!el) return
+  // 短会话内容不足一屏时没有滚动条,已停在顶部时继续上滚也不再改变 scrollTop——
+  // 这两种情况浏览器都不派发 scroll 事件,onScroll 里的触顶判断永远收不到信号。
+  // 此时以"向上滚轮"这个真实用户手势作为拉取历史的意图来源(程序化滚动不产生 wheel,
+  // 因此不会重蹈 scrollToBottom 钉底循环误触发 reach-top 的覆辙)
+  if (e.deltaY >= 0 || el.scrollTop >= 10) return
+  const now = performance.now()
+  if (now - lastWheelTopAt < 300) return
+  lastWheelTopAt = now
+  emit('reach-top')
 }
 
 // —— 尺寸测量:观察每个渲染项,真实高度回写 heights ——

@@ -6,6 +6,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.4.4',
+    date: '2026-08-11',
+    items: [
+      '修复消息很少的会话无法上滑加载历史消息:此前只有出现滚动条时才能触发拉取,消息不足一屏的会话(如新群、刚清理过的会话)怎么滑都没反应',
+      '已经滑到最顶部后继续上滑,也能继续往前翻更早的历史消息',
+    ]
+  },
+  {
     version: '1.4.3',
     date: '2026-08-02',
     items: [

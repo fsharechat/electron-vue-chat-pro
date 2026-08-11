@@ -295,3 +295,45 @@ describe('ChatVirtualList wheel 驱动的 user-scroll', () => {
     expect(wrapper.emitted('user-scroll')).toBeFalsy()
   })
 })
+
+describe('ChatVirtualList wheel 驱动的 reach-top(短会话拉历史)', () => {
+  it('内容不足一屏时,向上滚轮 emit reach-top', async () => {
+    // 短会话没有滚动条,浏览器根本不派发 scroll 事件,onScroll 的触顶判断永远收不到信号
+    const { wrapper, el } = mountList(3)
+    expect(el.scrollHeight).toBeLessThanOrEqual(el.clientHeight)
+    el.dispatchEvent(new WheelEvent('wheel', { deltaY: -50 }))
+    await nextTick()
+    expect(wrapper.emitted('reach-top')).toHaveLength(1)
+  })
+
+  it('内容超一屏但已停在顶部时,向上滚轮也 emit reach-top', async () => {
+    // scrollTop 已是 0,再上滚不会产生 scroll 事件,同样需要 wheel 兜底
+    const { wrapper, el } = mountList(200)
+    el.scrollTop = 0
+    el.dispatchEvent(new WheelEvent('wheel', { deltaY: -50 }))
+    await nextTick()
+    expect(wrapper.emitted('reach-top')).toHaveLength(1)
+  })
+
+  it('向下滚轮不 emit reach-top', async () => {
+    const { wrapper, el } = mountList(3)
+    el.dispatchEvent(new WheelEvent('wheel', { deltaY: 50 }))
+    await nextTick()
+    expect(wrapper.emitted('reach-top')).toBeFalsy()
+  })
+
+  it('视口不在顶部时,向上滚轮不 emit reach-top', async () => {
+    const { wrapper, el } = mountList(200)
+    el.scrollTop = 5000
+    el.dispatchEvent(new WheelEvent('wheel', { deltaY: -50 }))
+    await nextTick()
+    expect(wrapper.emitted('reach-top')).toBeFalsy()
+  })
+
+  it('一次连续滚轮手势内节流,不会打出多次 reach-top', async () => {
+    const { wrapper, el } = mountList(3)
+    for (let i = 0; i < 20; i++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: -50 }))
+    await nextTick()
+    expect(wrapper.emitted('reach-top')).toHaveLength(1)
+  })
+})
