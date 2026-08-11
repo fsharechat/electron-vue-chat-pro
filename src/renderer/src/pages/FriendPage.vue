@@ -61,11 +61,12 @@ function sendMessage() {
 
 <style scoped>
 .friend-page { display: flex; height: 100%; }
-.friend-panel { width: 260px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--bg-tertiary); }
+/* 两栏同色，分栏线不能只靠底色差，需用强描边 */
+.friend-panel { width: 260px; flex-shrink: 0; border-right: 1px solid var(--border-strong); display: flex; flex-direction: column; background: var(--bg-overlay); }
 .panel-header { padding: 16px 12px 8px; display: flex; align-items: center; justify-content: space-between; }
 .panel-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
 .add-btn { width: 28px; height: 28px; border-radius: 6px; border: none; background: var(--bg-secondary); color: var(--text-muted); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
 .add-btn:hover { background: var(--accent); color: #fff; }
-.info-panel { flex: 1; overflow-y: auto; background: var(--bg-primary); }
+.info-panel { flex: 1; overflow-y: auto; background: var(--bg-overlay); }
 .empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-size: 14px; }
 </style>

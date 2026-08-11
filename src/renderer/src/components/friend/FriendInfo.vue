@@ -109,7 +109,8 @@ async function saveRemark() {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-base);
+  /* 与左侧好友列表同色，整个好友页连成一个面 */
+  background: var(--bg-overlay);
   overflow-y: auto;
 }
 

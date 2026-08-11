@@ -38,9 +38,9 @@ onUnmounted(() => {
 
 <template>
   <div class="app-layout">
-    <AppTitleBar class="title-bar-row" />
+    <AppSidebar class="sidebar" />
     <div class="app-content">
-      <AppSidebar class="sidebar" />
+      <AppTitleBar class="title-bar-row" />
       <div class="main">
         <router-view />
       </div>
@@ -52,26 +52,26 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* 侧边栏独占整窗左侧一列，标题栏只覆盖右侧内容区 */
 .app-layout {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   width: 100vw;
   height: 100vh;
   background: var(--bg-base);
   overflow: hidden;
 }
 
-.title-bar-row {
-  width: 100%;
-}
-
 .app-content {
   display: flex;
+  flex-direction: column;
   flex: 1;
-  min-height: 0;
+  min-width: 0;
   overflow: hidden;
 }
 
+.title-bar-row { width: 100%; }
+
 .sidebar { flex-shrink: 0; }
-.main { flex: 1; min-width: 0; overflow: hidden; }
+.main { flex: 1; min-height: 0; overflow: hidden; }
 </style>

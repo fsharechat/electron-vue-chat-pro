@@ -9,11 +9,14 @@
   --bg-overlay:    #171728;
   --bg-elevated:   #1e1e32;
   --bg-float:      #26263e;
+  /* 侧边栏图标栏：整窗最左一列，需比会话列表更「沉」一层 */
+  --bg-sidebar:    #11111e;
   /* Legacy aliases (keep for compat) */
   --bg-primary:    #0c0c16;
   --bg-secondary:  #11111e;
   --bg-tertiary:   #171728;
-  --bg-chat:       #0c0c16;
+  /* 聊天/好友详情画布：不能比侧边栏更沉，也要留出气泡(--bg-bubble-in)的抬升空间 */
+  --bg-chat:       #13131f;
 
   /* Bubble colors */
   --bg-bubble-in:  #1a1a2d;
@@ -84,6 +87,7 @@
   --bg-overlay:    #f2f2fa;
   --bg-elevated:   #eaeaf5;
   --bg-float:      #e0e0ee;
+  --bg-sidebar:    #eaeaf5;
   --bg-primary:    #f7f7fc;
   --bg-secondary:  #ffffff;
   --bg-tertiary:   #f2f2fa;

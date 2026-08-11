@@ -220,7 +220,8 @@ onUnmounted(() => {
   width: 1px;
   flex-shrink: 0;
   cursor: col-resize;
-  background: var(--border);
+  /* 标题行两侧同为 --bg-overlay，分栏线不能只靠底色差，需用强描边 */
+  background: var(--border-strong);
   position: relative;
   transition: background 120ms;
   z-index: 10;
@@ -232,7 +233,7 @@ onUnmounted(() => {
 }
 .resizer:hover { background: var(--accent); }
 
-.chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-base); }
+.chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-chat); }
 .message-area { flex: 1; min-height: 0; overflow: hidden; }
 .h-resizer {
   height: 1px;

@@ -231,7 +231,8 @@ async function toggleInfoPanel() {
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  background: var(--bg-base);
+  /* 与会话列表面板同色，让窗口顶部横向连成一条带 */
+  background: var(--bg-overlay);
   position: relative;
 }
 .header-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
@@ -269,7 +270,7 @@ async function toggleInfoPanel() {
 .messages-scroll {
   flex: 1;
   padding: 12px 0 8px;
-  background: var(--bg-base);
+  background: var(--bg-chat);
 }
 
 /* Loading dots */

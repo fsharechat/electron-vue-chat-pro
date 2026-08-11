@@ -97,7 +97,7 @@ function loginOut() {
         </svg>
       </button>
 
-      <div style="position:relative">
+      <div class="nav-add">
         <button class="nav-btn" title="添加" @click="showAddTip = !showAddTip">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -120,7 +120,7 @@ function loginOut() {
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
       </button>
-      <button class="footer-btn" title="关于" style="position:relative" @click="openAbout">
+      <button class="footer-btn footer-btn--about" title="关于" @click="openAbout">
         <span v-if="hasNewVersion" class="dot-badge"></span>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
@@ -145,11 +145,23 @@ function loginOut() {
   align-items: center;
   width: 64px;
   height: 100%;
-  background: var(--bg-surface);
+  background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
-  padding: 16px 0 12px;
+  padding: 14px 0 12px;
   position: relative;
   flex-shrink: 0;
+  /* 整条侧边栏充当窗口拖拽区 */
+  -webkit-app-region: drag;
+}
+
+/* 拖拽区会吞掉鼠标事件，所有可交互元素必须显式排除；
+   .nav-add / .personal-card 是弹层容器，子元素继承 no-drag */
+.avatar-wrap,
+.nav-btn,
+.nav-add,
+.footer-btn,
+.sidebar :deep(.personal-card) {
+  -webkit-app-region: no-drag;
 }
 
 /* ── Avatar ──────────────────────────────── */
@@ -174,7 +186,7 @@ function loginOut() {
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  border: 2px solid var(--bg-surface);
+  border: 2px solid var(--bg-sidebar);
 }
 /* 伪元素做涟漪，主元素保持静止；transform/opacity 仅走合成层，不触发 repaint */
 .status-dot::after {
@@ -204,6 +216,9 @@ function loginOut() {
   flex-direction: column;
   align-items: center;
   gap: 2px;
+}
+.nav-add {
+  position: relative;
 }
 .nav-btn {
   position: relative;
@@ -249,7 +264,7 @@ function loginOut() {
   height: 8px;
   background: var(--danger);
   border-radius: 50%;
-  border: 1.5px solid var(--bg-surface);
+  border: 1.5px solid var(--bg-sidebar);
 }
 
 .badge {
@@ -291,8 +306,10 @@ function loginOut() {
   justify-content: center;
   transition: background var(--dur-normal), color var(--dur-normal);
 }
+.footer-btn--about { position: relative; }
+/* 亮色下 --bg-overlay 比侧边栏底色更浅，hover 会失效，统一用 accent-subtle */
 .footer-btn:hover {
-  background: var(--bg-overlay);
+  background: var(--accent-subtle);
   color: var(--text-secondary);
 }
 .danger-btn:hover {
