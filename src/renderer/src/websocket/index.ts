@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {PUBLISH, FP, UPUI, MP, MS, KEY_VUE_USER_ID, KEY_VUE_DEVICE_ID, DISCONNECT, GPGI, GQNUT, US, FAR, FRP, FHR, MMI, GPGM, GC, GQ, PUB_ACK, ERROR_CODE, MR, GAM, GMI, GKM, GD, GMURL, FALS, LRM, MDR, MRP, MRR, SAI} from '../constant'
+import {PUBLISH, FP, UPUI, MP, MS, KEY_VUE_USER_ID, KEY_VUE_DEVICE_ID, DISCONNECT, GPGI, GQNUT, US, FAR, FRP, FHR, MMI, GPGM, GC, GQ, PUB_ACK, ERROR_CODE, MR, GAM, GMI, GKM, GD, GMURL, FALS, LRM, MDR, MRP, MRR, SAI, UG, UP} from '../constant'
 import {decrypt,encrypt} from './utils/aes'
 import {CONNECT} from '../constant'
 import {WebSocketProtoMessage} from './message/websocketprotomessage'
@@ -44,6 +44,9 @@ import PullMessageReportHandler from './handler/pullMessageReportHandler';
 import NotifyMessageReportHandler from './handler/notifyMessageReportHandler';
 import ReadReportHandler from './handler/ReadReportHandler';
 import StreamingAiHandler from './handler/streamingAiHandler';
+import UserSettingResultHandler from './handler/userSettingResultHandler'
+import NotifyUserSettingHandler from './handler/notifyUserSettingHandler'
+import { useUserSettingStore } from '../stores/useUserSettingStore'
 export default class VueWebSocket {
     handlerList = [];
     userDisconnect = false;
@@ -233,6 +236,8 @@ export default class VueWebSocket {
     initHandlerList(){
         this.handlerList.push(new ConnectAckHandler(this));
         this.handlerList.push(new GetFriendResultHandler(this));
+        this.handlerList.push(new UserSettingResultHandler(this));
+        this.handlerList.push(new NotifyUserSettingHandler(this));
         this.handlerList.push(new GetUserInfoHandler(this));
         this.handlerList.push(new ReceiveMessageHandler(this));
         this.handlerList.push(new NotifyMessageHandler(this));
@@ -321,6 +326,24 @@ export default class VueWebSocket {
      */
     getFriend(version = 0){
         this.sendPublishMessage(FP,{version : version});
+    }
+
+    /**
+     * 拉取用户设置增量。不传 version 时用 store 里已同步到的最大 updateDt，新设备为 0 即全量。
+     */
+    getUserSettings(version){
+        const store = useUserSettingStore();
+        const from = version === undefined ? store.version : version;
+        this.sendPublishMessage(UG, { version: from });
+    }
+
+    /**
+     * 上报一条用户设置。取消操作传 value "0"（tombstone），不要用删除表达。
+     * 先写本地让 UI 立即生效，上报失败不回滚，下次登录以服务端为准。
+     */
+    updateUserSetting(scope, key, value){
+        useUserSettingStore().setLocal(scope, key, value);
+        this.sendPublishMessage(UP, { scope: scope, key: key, value: value });
     }
 
     searchUser(keyword){
