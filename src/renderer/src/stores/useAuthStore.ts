@@ -44,7 +44,7 @@ export const useAuthStore = defineStore('auth', () => {
         updateTempGroupMember:    () => groupStore.updateTempGroupMember(data),
         addProtoMessage:          () => messageStore.addProtoMessage(data),
         updateConversationInfo:   () => conversationStore.updateConversationInfo(data),
-        applyUserSettings:        () => userSettingStore.applyEntries(data),
+        applyUserSettings:        () => { userSettingStore.applyEntries(data); conversationStore.projectUserSettings() },
         updateProtoMessageUid:    () => messageStore.updateProtoMessageUid(data),
         updateMessageStatus:      () => messageStore.updateMessageStatus(data),
         updateMessageContent:     () => messageStore.updateMessageContent(data),
@@ -67,7 +67,12 @@ export const useAuthStore = defineStore('auth', () => {
     uiStore.initNotify()
 
     const convs = LocalStore.getConversations()
-    if (convs) conversationStore.conversations = convs
+    // 缓存里的行带着上次持久化时的 isTop/isSilent，可能早于最新一次 UG 落地；
+    // 用当前设置表重新投影一遍，避免「UG 先到、缓存后加载」的顺序用陈旧标志盖掉刚投影好的结果
+    if (convs) {
+      conversationStore.conversations = convs
+      conversationStore.projectUserSettings()
+    }
     const msgs = LocalStore.getMessages()
     // 用 hydrateMessages 而不是直接赋值：它会把回灌进来、卡在「通话中」状态的
     // 通话记录归一成「已结束」，详见 useMessageStore.ts 里的说明。

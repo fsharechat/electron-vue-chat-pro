@@ -96,6 +96,22 @@ export const useConversationStore = defineStore('conversation', () => {
     updateConverstationOrder()
   }
 
+  /**
+   * 把设置表投影回已存在的会话行。只应在两个点调用：UG 应答落地（applyEntries）之后，
+   * 以及登录时从 LocalStore 回灌会话缓存之后——这两个点服务端/上次持久化的数据都是权威的。
+   * 千万不要挂在每条消息的 update 分支上：那样会把用户刚做的本地取消/开启操作，
+   * 用尚未来得及被这次操作覆盖的旧设置值盖回去。
+   */
+  function projectUserSettings() {
+    const settingStore = useUserSettingStore()
+    for (const sc of conversations.value) {
+      const info = sc.conversationInfo
+      info.isTop = settingStore.isConversationTop(info.conversationType, info.line ?? 0, info.target)
+      info.isSilent = settingStore.isConversationSilent(info.conversationType, info.line ?? 0, info.target)
+    }
+    updateConverstationOrder()
+  }
+
   function updateConversationIntro(groupInfos: any[]) {
     for (const groupInfo of groupInfos) {
       const sc = conversations.value.find(c => c.conversationInfo.target === groupInfo.target)
@@ -203,6 +219,7 @@ export const useConversationStore = defineStore('conversation', () => {
     updateConversationIntro, topConversation, unTopConversation,
     silentConversation, unSilentConversation, deleteConversation,
     clearConversationMessages, updateConverstationOrder, syncGroupInfos, syncUserInfos,
+    projectUserSettings,
     reset,
   }
 })

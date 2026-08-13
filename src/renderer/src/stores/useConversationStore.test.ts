@@ -149,4 +149,59 @@ describe('会话设置与服务端同步', () => {
     const sc = conversationStore.conversations.find(c => c.conversationInfo.target === 'user-d')
     expect(sc?.conversationInfo.isTop).toBe(false)
   })
+
+  describe('projectUserSettings：把设置表投影回已存在的会话行', () => {
+    it('已存在的会话行在 applyEntries 之后，projectUserSettings 会把 isTop/isSilent 补上', () => {
+      const conversationStore = useConversationStore()
+      conversationStore.updateConversationInfo(makeConversationInfo({ target: 'user-e' }))
+
+      const settingStore = useUserSettingStore()
+      settingStore.applyEntries([
+        { scope: USER_SETTING_SCOPE.conversationTop, key: conversationSettingKey(0, 0, 'user-e'), value: '1', updateDt: 100 },
+        { scope: USER_SETTING_SCOPE.conversationSilent, key: conversationSettingKey(0, 0, 'user-e'), value: '1', updateDt: 100 }
+      ])
+
+      // 光 applyEntries 不会改动已存在的会话行——这正是修复前的 bug
+      let sc = conversationStore.conversations.find(c => c.conversationInfo.target === 'user-e')
+      expect(sc?.conversationInfo.isTop).toBe(false)
+
+      conversationStore.projectUserSettings()
+
+      sc = conversationStore.conversations.find(c => c.conversationInfo.target === 'user-e')
+      expect(sc?.conversationInfo.isTop).toBe(true)
+      expect(sc?.conversationInfo.isSilent).toBe(true)
+    })
+
+    it('墓碑值 "0" 能把已置顶的行投影回不置顶', () => {
+      const conversationStore = useConversationStore()
+      conversationStore.updateConversationInfo(makeConversationInfo({ target: 'user-f', isTop: true }))
+
+      const settingStore = useUserSettingStore()
+      settingStore.applyEntries([
+        { scope: USER_SETTING_SCOPE.conversationTop, key: conversationSettingKey(0, 0, 'user-f'), value: '1', updateDt: 100 },
+        { scope: USER_SETTING_SCOPE.conversationTop, key: conversationSettingKey(0, 0, 'user-f'), value: '0', updateDt: 200 }
+      ])
+      conversationStore.projectUserSettings()
+
+      const sc = conversationStore.conversations.find(c => c.conversationInfo.target === 'user-f')
+      expect(sc?.conversationInfo.isTop).toBe(false)
+    })
+
+    it('投影后列表按新的置顶状态重排', () => {
+      const conversationStore = useConversationStore()
+      conversationStore.updateConversationInfo(makeConversationInfo({ target: 'user-g' }))
+      conversationStore.updateConversationInfo(makeConversationInfo({ target: 'user-h' }))
+      // 此时 unshift 顺序应为 [user-h, user-g]
+      expect(conversationStore.conversations.map(c => c.conversationInfo.target)).toEqual(['user-h', 'user-g'])
+
+      const settingStore = useUserSettingStore()
+      settingStore.applyEntries([
+        { scope: USER_SETTING_SCOPE.conversationTop, key: conversationSettingKey(0, 0, 'user-g'), value: '1', updateDt: 100 }
+      ])
+      conversationStore.projectUserSettings()
+
+      expect(conversationStore.conversations[0].conversationInfo.target).toBe('user-g')
+      expect(conversationStore.conversations[0].conversationInfo.isTop).toBe(true)
+    })
+  })
 })
