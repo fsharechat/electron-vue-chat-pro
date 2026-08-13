@@ -68,6 +68,9 @@ class WebSocketClient {
     return this._instance?.getGroupInfo(groupId, refresh)
   }
 
+  getUserSettings(version) { return this._instance?.getUserSettings(version) }
+  updateUserSetting(scope, key, value) { return this._instance?.updateUserSetting(scope, key, value) }
+
   getUserInfos(userIds) {
     return this._instance?.getUserInfos(userIds)
   }

@@ -4,6 +4,8 @@ import type { StateConversationInfo } from '@/types'
 import LocalStore from '@/websocket/store/localstore'
 import webSocketClient from '@/websocket/websocketcli'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useUserSettingStore } from '@/stores/useUserSettingStore'
+import { USER_SETTING_SCOPE, conversationSettingKey } from '@/constant'
 
 export const useConversationStore = defineStore('conversation', () => {
   const conversations = ref<StateConversationInfo[]>([])
@@ -73,6 +75,13 @@ export const useConversationStore = defineStore('conversation', () => {
     }
 
     if (!update) {
+      // 从设置派生而非沿用服务端推来的 falsy 值：UG 可能先于会话建立到达
+      //（重装/换设备场景），只在 UG 落地那一刻投影一次会漏掉之后才建出来的会话
+      const settingStore = useUserSettingStore()
+      const info = protoConversationInfo
+      info.isTop = settingStore.isConversationTop(info.conversationType, info.line ?? 0, info.target)
+      info.isSilent = settingStore.isConversationSilent(info.conversationType, info.line ?? 0, info.target)
+
       updateStateConversationInfo = {
         name: protoConversationInfo.target,
         img: '',
@@ -97,26 +106,45 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
+  /** 把一条会话设置上报给服务端。取消传 "0"（tombstone），不要用删除表达 */
+  function reportConversationSetting(sc: StateConversationInfo, scope: number, value: string) {
+    const info = sc.conversationInfo
+    const key = conversationSettingKey(info.conversationType, info.line ?? 0, info.target)
+    webSocketClient.updateUserSetting(scope, key, value)
+  }
+
   function topConversation(targetId: string) {
     const sc = conversations.value.find(c => c.conversationInfo.target === targetId)
-    if (sc) sc.conversationInfo.isTop = true
+    if (sc) {
+      sc.conversationInfo.isTop = true
+      reportConversationSetting(sc, USER_SETTING_SCOPE.conversationTop, '1')
+    }
     updateConverstationOrder()
   }
 
   function unTopConversation(targetId: string) {
     const sc = conversations.value.find(c => c.conversationInfo.target === targetId)
-    if (sc) sc.conversationInfo.isTop = false
+    if (sc) {
+      sc.conversationInfo.isTop = false
+      reportConversationSetting(sc, USER_SETTING_SCOPE.conversationTop, '0')
+    }
     updateConverstationOrder()
   }
 
   function silentConversation(targetId: string) {
     const sc = conversations.value.find(c => c.conversationInfo.target === targetId)
-    if (sc) sc.conversationInfo.isSilent = true
+    if (sc) {
+      sc.conversationInfo.isSilent = true
+      reportConversationSetting(sc, USER_SETTING_SCOPE.conversationSilent, '1')
+    }
   }
 
   function unSilentConversation(targetId: string) {
     const sc = conversations.value.find(c => c.conversationInfo.target === targetId)
-    if (sc) sc.conversationInfo.isSilent = false
+    if (sc) {
+      sc.conversationInfo.isSilent = false
+      reportConversationSetting(sc, USER_SETTING_SCOPE.conversationSilent, '0')
+    }
   }
 
   function deleteConversation(targetId: string) {
