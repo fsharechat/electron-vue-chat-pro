@@ -108,11 +108,15 @@ export const useAuthStore = defineStore('auth', () => {
     const friendStore = useFriendStore()
     const groupStore = useGroupStore()
     const uiStore = useUIStore()
+    const userSettingStore = useUserSettingStore()
     conversationStore.reset()
     messageStore.reset()
     friendStore.reset()
     groupStore.reset()
     uiStore.reset()
+    // 设置与 version 必须同生共死地清空：只清其一会让下个账号的 shouldPullUserSettings
+    // 误判为"本地已经很新"而永久跳过 UG 拉取（见 useUserSettingStore.clearAll 注释）
+    userSettingStore.clearAll()
     window.electronAPI?.setLoggedIn(false)
   }
 

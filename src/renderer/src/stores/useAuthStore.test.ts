@@ -78,3 +78,50 @@ describe('useAuthStore.initData：会话设置的两个投影调用点', () => {
     expect(sc?.conversationInfo.isTop).toBe(true)
   })
 })
+
+describe('useAuthStore.loginOut：设置与 version 必须同生共死地清空', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    capturedDispatcher = null
+  })
+
+  it('登出会清空用户设置与 version（删掉 clearAll() 调用这个用例会红）', () => {
+    const settingStore = useUserSettingStore()
+    settingStore.applyEntries([
+      { scope: USER_SETTING_SCOPE.favoriteGroup, key: 'group-1', value: '1', updateDt: 100 }
+    ])
+    expect(settingStore.version).toBe(100)
+    expect(settingStore.settingValue(USER_SETTING_SCOPE.favoriteGroup, 'group-1')).toBe('1')
+
+    const authStore = useAuthStore()
+    authStore.loginOut()
+
+    expect(settingStore.version).toBe(0)
+    expect(settingStore.settingValue(USER_SETTING_SCOPE.favoriteGroup, 'group-1')).toBeUndefined()
+    expect(Object.keys(settingStore.settings)).toHaveLength(0)
+  })
+
+  it('登出后换账号登录，会话行不带上一个账号残留的 isTop/isSilent', () => {
+    // 账号 A：设置了置顶，且会话行也反映了这个置顶
+    const settingStore = useUserSettingStore()
+    const conversationStore = useConversationStore()
+    conversationStore.updateConversationInfo(makeConversationInfo({ target: 'group-a', conversationType: 1 }))
+    settingStore.applyEntries([
+      { scope: USER_SETTING_SCOPE.conversationTop, key: conversationSettingKey(1, 0, 'group-a'), value: '1', updateDt: 50 }
+    ])
+    conversationStore.projectUserSettings()
+    expect(conversationStore.conversations.find(c => c.conversationInfo.target === 'group-a')?.conversationInfo.isTop).toBe(true)
+
+    const authStore = useAuthStore()
+    authStore.loginOut()
+
+    // 账号 A 的会话行与设置都应从内存中清空
+    expect(conversationStore.conversations).toHaveLength(0)
+    expect(settingStore.settingValue(USER_SETTING_SCOPE.conversationTop, conversationSettingKey(1, 0, 'group-a'))).toBeUndefined()
+
+    // 账号 B 登录，服务端推来同一个 target（不同账号但巧合同名/同 id 的会话），未置顶
+    conversationStore.updateConversationInfo(makeConversationInfo({ target: 'group-a', conversationType: 1, isTop: false }))
+    expect(conversationStore.conversations.find(c => c.conversationInfo.target === 'group-a')?.conversationInfo.isTop).toBe(false)
+  })
+})
