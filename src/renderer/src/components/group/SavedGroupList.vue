@@ -15,10 +15,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useUserSettingStore } from '@/stores/useUserSettingStore'
 import { useGroupStore } from '@/stores/useGroupStore'
 import webSocketClient from '@/websocket/websocketcli'
+import { selectMissingGroupIds } from './savedGroupList'
 
 defineEmits<{ (e: 'select', groupId: string): void }>()
 
@@ -26,13 +27,27 @@ const settingStore = useUserSettingStore()
 
 const groupStore = useGroupStore()
 
-// 群信息还没拉回来时退化为显示群 id，保证列表不会空着；同时补拉一次
+// 群信息还没拉回来时退化为显示群 id，保证列表不会空着。computed 只做纯粹的 id -> 展示数据映射，
+// 不带副作用：把 getGroupInfo 混进 getter 会导致 groupInfoList 因任意群信息到达而变化时，
+// 对所有仍缺信息的群重复发起请求（getGroupInfo 自身不去重）。
 const savedGroups = computed(() =>
   settingStore.savedGroupIds.map(id => {
     const info = groupStore.groupInfoList.find(g => g.target === id)
-    if (!info) webSocketClient.getGroupInfo(id, false)
     return { id, name: info?.name ?? id, portrait: info?.portrait ?? '' }
   })
+)
+
+// 补拉缺失群信息的副作用单独放在 watch 里，配合 selectMissingGroupIds 的去重，
+// 保证同一个 groupId 只会被请求一次
+const requestedGroupIds = new Set<string>()
+
+watch(
+  () => settingStore.savedGroupIds,
+  ids => {
+    const toFetch = selectMissingGroupIds(ids, groupStore.groupInfoList, requestedGroupIds)
+    for (const id of toFetch) webSocketClient.getGroupInfo(id, false)
+  },
+  { immediate: true }
 )
 </script>
 
