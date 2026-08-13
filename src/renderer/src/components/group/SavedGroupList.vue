@@ -1,5 +1,6 @@
 <template>
   <div class="saved-group-list">
+    <div class="list-header">群聊</div>
     <div v-if="savedGroups.length === 0" class="empty">还没有保存的群聊</div>
     <div
       v-for="group in savedGroups"
@@ -52,9 +53,50 @@ watch(
 </script>
 
 <style scoped>
-.saved-group-list { display: flex; flex-direction: column; }
-.saved-group-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; }
+/* 版式与「新的朋友」面板（FriendRequest.vue）保持一致：同样的外边距、标题字号与条目分隔线 */
+.saved-group-list {
+  padding: 20px 24px;
+  height: 100%;
+}
+
+.list-header {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.saved-group-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
 .saved-group-item:hover { background: var(--bg-elevated); }
-.avatar { width: 32px; height: 32px; border-radius: 4px; }
-.empty { padding: 24px; text-align: center; color: var(--text-muted); }
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px;
+}
 </style>
