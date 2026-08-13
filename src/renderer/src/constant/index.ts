@@ -25,6 +25,27 @@ export const MMI = 'MMI'; export const LRM = 'LRM'; export const MDR = 'MDR'
 export const MRP = 'MRP'; export const MRN = 'MRN'; export const MRR = 'MRR'
 export const SAI = 'SAI'
 
+// 用户设置同步：UG 拉取、UP 上报、UN 服务端通知。
+// WebSocket 侧按 topic 字符串路由，不依赖 android/iOS 那边的 SubSignal ordinal
+export const UG = 'UG'; export const UP = 'UP'; export const UN = 'UN'
+
+/** 与服务端 UserSettingScope 对齐 */
+export const USER_SETTING_SCOPE = {
+  conversationSilent: 1,
+  globalSilent: 2,
+  conversationTop: 3,
+  favoriteGroup: 6
+} as const
+
+/**
+ * 会话类 setting 的 key：type-line-target（连字符）。
+ * 必须与服务端 MemoryMessagesStore.getUserConversationSlient() 的拼法完全一致，
+ * 否则上传的设置服务端读不到。
+ */
+export function conversationSettingKey(conversationType: number, line: number, target: string): string {
+  return `${conversationType}-${line}-${target}`
+}
+
 export const HTTP_HOST = HTTP_PROTOCOL + '://' + HTTP_IP + '/'
 export const LOGIN_API = HTTP_HOST + 'login'
 export const SNED_VERIFY_CODE_API = HTTP_HOST + 'send_code'
