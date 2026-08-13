@@ -1,12 +1,18 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { nextTick } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { useUserSettingStore } from './useUserSettingStore'
 import { USER_SETTING_SCOPE, conversationSettingKey } from '../constant'
+
+// 与 useUserSettingStore.ts 内部的私有存储 key 保持一致，仅用于测试断言持久化内容
+const STORAGE_KEY = 'user_settings'
+const STORAGE_VERSION_KEY = 'user_settings_version'
 
 describe('useUserSettingStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
+    vi.restoreAllMocks()
   })
 
   it('会话 key 是连字符分隔的 type-line-target', () => {
@@ -119,5 +125,59 @@ describe('useUserSettingStore', () => {
     expect(store.settingValue(6, 'group-a')).toBeUndefined()
     expect(store.version).toBe(0)
     expect([...store.savedGroupIds]).toEqual([])
+  })
+
+  it('localStorage 里已存的 settings 不是合法 JSON 时，初始化不崩溃，回退为空对象', () => {
+    localStorage.setItem(STORAGE_KEY, 'not valid json{{{')
+
+    expect(() => useUserSettingStore()).not.toThrow()
+    const store = useUserSettingStore()
+
+    expect(store.settings).toEqual({})
+  })
+
+  it('localStorage 里已存的 version 不是数字时，初始化不崩溃，回退为 0', () => {
+    localStorage.setItem(STORAGE_VERSION_KEY, 'not-a-number')
+
+    const store = useUserSettingStore()
+
+    expect(store.version).toBe(0)
+  })
+
+  it('写入设置后 localStorage 里确实有对应内容', async () => {
+    const store = useUserSettingStore()
+
+    store.applyEntries([{ scope: 6, key: 'group-a', value: '1', updateDt: 100 }])
+    await nextTick()
+
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')).toEqual({ '6:group-a': '1' })
+    expect(localStorage.getItem(STORAGE_VERSION_KEY)).toBe('100')
+  })
+
+  it('重新实例化 store 后能从 localStorage 恢复 settings 与 version', async () => {
+    const store = useUserSettingStore()
+    store.applyEntries([{ scope: 6, key: 'group-a', value: '1', updateDt: 100 }])
+    await nextTick()
+
+    // 模拟应用重启：换一个全新的 pinia，重新拿 store 实例
+    setActivePinia(createPinia())
+    const restored = useUserSettingStore()
+
+    expect(restored.settingValue(6, 'group-a')).toBe('1')
+    expect(restored.version).toBe(100)
+  })
+
+  it('settings 写入失败时，version 不落盘，避免磁盘上 version 快于设置', async () => {
+    const store = useUserSettingStore()
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key: string) => {
+      if (key === STORAGE_KEY) throw new Error('quota exceeded')
+    })
+
+    store.applyEntries([{ scope: 6, key: 'group-a', value: '1', updateDt: 100 }])
+    await nextTick()
+
+    expect(setItemSpy).not.toHaveBeenCalledWith(STORAGE_VERSION_KEY, expect.anything())
+    // 内存里该推进的还是推进了，只是没能落盘——这条不变量本身由前面的用例覆盖
+    expect(store.version).toBe(100)
   })
 })
