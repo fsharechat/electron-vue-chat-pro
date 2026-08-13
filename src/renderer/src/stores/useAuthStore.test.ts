@@ -11,10 +11,14 @@ vi.mock('@wcjiang/notify', () => ({ default: vi.fn() }))
 // 只关心 initData 里传给 VueWebSocket 的 dispatcher：捕获它，绕开真实 socket 连接，
 // 直接调用 dispatcher('applyUserSettings', ...) 来驱动 useAuthStore.ts 里那一支 map 分支
 let capturedDispatcher: ((action: string, data: unknown) => void) | null = null
+// 捕获 mock 出来的 VueWebSocket 实例本身，用来断言 loginOut() 真的调用了 destroy()
+// （而不只是发一条 DISCONNECT 信令就把 vueSocket 变量置空）
+let capturedInstance: { sendDisConnectMessage: ReturnType<typeof vi.fn>; modifyMyInfo: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> } | null = null
 vi.mock('@/websocket/index', () => ({
   default: vi.fn().mockImplementation((_errorHandler, storeDispatcher) => {
     capturedDispatcher = storeDispatcher
-    return { sendDisConnectMessage: vi.fn(), modifyMyInfo: vi.fn() }
+    capturedInstance = { sendDisConnectMessage: vi.fn(), modifyMyInfo: vi.fn(), destroy: vi.fn() }
+    return capturedInstance
   })
 }))
 
@@ -41,6 +45,7 @@ describe('useAuthStore.initData：会话设置的两个投影调用点', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     capturedDispatcher = null
+    capturedInstance = null
   })
 
   it('dispatcher 收到 applyUserSettings 后，已存在的会话行会被投影（不删这行调用会红）', () => {
@@ -84,6 +89,7 @@ describe('useAuthStore.loginOut：设置与 version 必须同生共死地清空'
     setActivePinia(createPinia())
     localStorage.clear()
     capturedDispatcher = null
+    capturedInstance = null
   })
 
   it('登出会清空用户设置与 version（删掉 clearAll() 调用这个用例会红）', () => {
@@ -123,5 +129,19 @@ describe('useAuthStore.loginOut：设置与 version 必须同生共死地清空'
     // 账号 B 登录，服务端推来同一个 target（不同账号但巧合同名/同 id 的会话），未置顶
     conversationStore.updateConversationInfo(makeConversationInfo({ target: 'group-a', conversationType: 1, isTop: false }))
     expect(conversationStore.conversations.find(c => c.conversationInfo.target === 'group-a')?.conversationInfo.isTop).toBe(false)
+  })
+
+  it('loginOut 会摘掉旧连接的 handler，不只是发一条 DISCONNECT 信令（删掉 vueSocket?.destroy() 这一行，这个用例会红）', () => {
+    // DISCONNECT 信令发出后服务端要一个 RTT 才会真正关闭通道；这期间到达的应答如果还能被派发，
+    // clearAll() 之后紧接着落地的就是旧账号的设置数据。真正阻断这条路径的是 VueWebSocket.destroy()
+    // 清空 handlerList/storeDispatcher（见 websocket/index.test.ts），这里只断言 loginOut 确实
+    // 调用了它，而不是像旧代码那样只把本地 vueSocket 变量置空、让旧实例继续监听。
+    const authStore = useAuthStore()
+    authStore.initData(() => {})
+    expect(capturedInstance).toBeTruthy()
+
+    authStore.loginOut()
+
+    expect(capturedInstance!.destroy).toHaveBeenCalledTimes(1)
   })
 })

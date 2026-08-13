@@ -186,6 +186,24 @@ export default class VueWebSocket {
         }
     }
 
+    /**
+     * 登出/切换账号时调用，而不是只发 DISCONNECT 信令：DISCONNECT 发出后服务端要一个 RTT
+     * 才会真正关闭通道，这期间到达的应答（比如刚提交的 UP 对应的 UG/UN 往返）如果还能走到
+     * onmessage -> processMessage -> storeDispatcher，就会把即将被 clearAll() 清空的那批
+     * 全局 pinia store 重新写回旧账号的数据——version 和设置本该同生共死地清空，却被这个窗口
+     * 期的迟到应答把 version 又推高，下一个账号登录时 shouldPullUserSettings 就会误判为
+     * "本地已经够新" 而永远不再拉取（见 useAuthStore.loginOut 里的说明）。
+     *
+     * disconnect() 调用 ws.close() 后，规范上 onmessage 不会再触发；handlerList 清空、
+     * storeDispatcher 换成空函数是双保险——即便某个环境下旧连接仍有消息触发 onmessage，
+     * processMessage 也找不到任何 handler，即使找到了也传不进 store。
+     */
+    destroy(){
+        this.disconnect();
+        this.handlerList = [];
+        this.storeDispatcher = () => {};
+    }
+
     reconnect(event){
         this.reconnect0();
     }

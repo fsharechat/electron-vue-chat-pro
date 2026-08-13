@@ -98,6 +98,13 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(KEY_VUE_USER_ID, '')
     localStorage.setItem(KEY_VUE_TOKEN, '')
     vueSocket?.sendDisConnectMessage()
+    // 发完 DISCONNECT 信令后必须立刻断开、摘掉 handler，不能指望服务端那一个 RTT 之外的窗口期
+    // 是安全的：这期间到达的应答（比如登出前最后一次设置修改触发的 UG/UN 往返）如果还能被派发，
+    // 落地的就是"旧账号的设置 + version"，等下面 clearAll() 一执行，反而把这份旧账号数据当成
+    // 权威状态保留下来——这正是不变量①禁止的"version 留着、设置却是别人的"状态，
+    // 下一个账号登录会因此被 shouldPullUserSettings 判定为无需拉取，永久同步不到自己的设置。
+    // 详见 VueWebSocket.destroy() 的注释。
+    vueSocket?.destroy()
     vueSocket = null
     webSocketClient.setInstance(null)
     LocalStore.clearLocalStore()

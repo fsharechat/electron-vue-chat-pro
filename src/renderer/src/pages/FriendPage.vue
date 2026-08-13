@@ -39,6 +39,11 @@ function sendMessage() {
       conversationInfo: pci as any
     })
     convStore.updateConverstationOrder()
+    // 这里是绕开 updateConversationInfo 直接建行的两个口子之一，没有 deriveFlag 派发，
+    // 新行的 isTop/isSilent 永远是 ProtoConversationInfo 的默认值 false。用已落地的设置表
+    // 补投影一次，避免「设置已经是 UG 落地的置顶/免打扰，但会话是这一刻才第一次建出来」时
+    // 被 deep watch 落盘成 false、且再也没有机会被 UN/UG 之外的路径纠正。
+    convStore.projectUserSettings()
   }
   convStore.selectTarget = target
   router.push('/conversation')
@@ -58,6 +63,9 @@ function openGroupConversation(groupId: string) {
       conversationInfo: pci as any
     })
     convStore.updateConverstationOrder()
+    // 同上：新建的会话行绕开了 updateConversationInfo 的 deriveFlag，
+    // 用设置表补投影一次，否则已保存到通讯录的群第一次被点开时会丢失置顶/免打扰。
+    convStore.projectUserSettings()
   }
   convStore.selectTarget = groupId
   router.push('/conversation')
