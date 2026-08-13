@@ -173,18 +173,47 @@ describe('会话设置与服务端同步', () => {
     })
 
     it('墓碑值 "0" 能把已置顶的行投影回不置顶', () => {
-      const conversationStore = useConversationStore()
-      conversationStore.updateConversationInfo(makeConversationInfo({ target: 'user-f', isTop: true }))
-
+      // 必须先让该行真的因为投影而置顶（走 applyEntries('1') + projectUserSettings），
+      // 不能靠新建分支的初始 isTop:true——那条分支会被当时还空的设置表立刻覆盖成 false，
+      // 会让这条断言在有没有投影时都成立，测试就失去了区分力
       const settingStore = useUserSettingStore()
       settingStore.applyEntries([
-        { scope: USER_SETTING_SCOPE.conversationTop, key: conversationSettingKey(0, 0, 'user-f'), value: '1', updateDt: 100 },
+        { scope: USER_SETTING_SCOPE.conversationTop, key: conversationSettingKey(0, 0, 'user-f'), value: '1', updateDt: 100 }
+      ])
+
+      const conversationStore = useConversationStore()
+      conversationStore.updateConversationInfo(makeConversationInfo({ target: 'user-f' }))
+      let sc = conversationStore.conversations.find(c => c.conversationInfo.target === 'user-f')
+      expect(sc?.conversationInfo.isTop).toBe(true)
+
+      settingStore.applyEntries([
         { scope: USER_SETTING_SCOPE.conversationTop, key: conversationSettingKey(0, 0, 'user-f'), value: '0', updateDt: 200 }
       ])
       conversationStore.projectUserSettings()
 
-      const sc = conversationStore.conversations.find(c => c.conversationInfo.target === 'user-f')
+      sc = conversationStore.conversations.find(c => c.conversationInfo.target === 'user-f')
       expect(sc?.conversationInfo.isTop).toBe(false)
+    })
+
+    it('设置表里没有对应条目时（老用户升级前只存本地、从未上报过服务端的存量状态），projectUserSettings 不会把 isTop/isSilent 清零', () => {
+      const conversationStore = useConversationStore()
+      // 直接往 conversations 里塞一行"陈旧缓存"：isTop/isSilent 已经是 true，但设置表对这个
+      // key 完全没有条目——这正是老用户升级后首次启动的真实状态（本功能上线前置顶/免打扰
+      // 只写本地，从未上报过服务端，所以 user_settings 里天然没有这些条目）
+      conversationStore.conversations.push({
+        name: 'user-legacy',
+        img: '',
+        conversationInfo: makeConversationInfo({ target: 'user-legacy', isTop: true, isSilent: true })
+      })
+
+      const settingStore = useUserSettingStore()
+      expect(settingStore.settingValue(USER_SETTING_SCOPE.conversationTop, conversationSettingKey(0, 0, 'user-legacy'))).toBeUndefined()
+
+      conversationStore.projectUserSettings()
+
+      const sc = conversationStore.conversations.find(c => c.conversationInfo.target === 'user-legacy')
+      expect(sc?.conversationInfo.isTop).toBe(true)
+      expect(sc?.conversationInfo.isSilent).toBe(true)
     })
 
     it('投影后列表按新的置顶状态重排', () => {

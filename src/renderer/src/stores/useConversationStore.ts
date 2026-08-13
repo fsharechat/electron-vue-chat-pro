@@ -38,6 +38,20 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
+  /**
+   * 三态派生：'1' → true，'0'（墓碑，明确取消）→ false，条目不存在（undefined）→ 保持 current 不动。
+   * 「不存在」和「明确取消」是两回事——老用户升级前本地已有的置顶/免打扰，服务端从未见过对应条目，
+   * settingValue 会返回 undefined；如果把 undefined 也当成 false 处理，就会把这些存量状态无中生有地
+   * 清零，而且这个清空还会被 conversations 的 deep watch 立刻落盘、UG 也拿不回来（服务端本来就没有）。
+   * 只有明确的墓碑 '0' 才允许把标志改回 false。
+   */
+  function deriveFlag(settingStore: ReturnType<typeof useUserSettingStore>, scope: number, key: string, current: boolean): boolean {
+    const value = settingStore.settingValue(scope, key)
+    if (value === '1') return true
+    if (value === '0') return false
+    return current
+  }
+
   function updateConversationInfo(protoConversationInfo: any) {
     // Check if this group message @ mentions the current user
     const msg = protoConversationInfo.lastMessage
@@ -76,11 +90,14 @@ export const useConversationStore = defineStore('conversation', () => {
 
     if (!update) {
       // 从设置派生而非沿用服务端推来的 falsy 值：UG 可能先于会话建立到达
-      //（重装/换设备场景），只在 UG 落地那一刻投影一次会漏掉之后才建出来的会话
+      //（重装/换设备场景），只在 UG 落地那一刻投影一次会漏掉之后才建出来的会话。
+      // 三态派生（见 deriveFlag）：条目不存在时保持服务端推来的原值（新会话本就是 falsy），
+      // 不会无中生有地清零，也不会误吞明确的墓碑 '0'
       const settingStore = useUserSettingStore()
       const info = protoConversationInfo
-      info.isTop = settingStore.isConversationTop(info.conversationType, info.line ?? 0, info.target)
-      info.isSilent = settingStore.isConversationSilent(info.conversationType, info.line ?? 0, info.target)
+      const key = conversationSettingKey(info.conversationType, info.line ?? 0, info.target)
+      info.isTop = deriveFlag(settingStore, USER_SETTING_SCOPE.conversationTop, key, !!info.isTop)
+      info.isSilent = deriveFlag(settingStore, USER_SETTING_SCOPE.conversationSilent, key, !!info.isSilent)
 
       updateStateConversationInfo = {
         name: protoConversationInfo.target,
@@ -101,13 +118,19 @@ export const useConversationStore = defineStore('conversation', () => {
    * 以及登录时从 LocalStore 回灌会话缓存之后——这两个点服务端/上次持久化的数据都是权威的。
    * 千万不要挂在每条消息的 update 分支上：那样会把用户刚做的本地取消/开启操作，
    * 用尚未来得及被这次操作覆盖的旧设置值盖回去。
+   *
+   * 必须用 deriveFlag 的三态语义，不能直接拿 isConversationTop/isConversationSilent（两态，
+   * undefined 与 '0' 都会归成 false）：本功能上线前置顶/免打扰只存本地、从未上报过服务端，
+   * 老用户升级后设置表里没有这些条目，如果把「没有条目」当成「已取消」，就会把存量状态
+   * 无中生有地清零，还会被下面的 deep watch 立刻落盘、之后也拿不回来（服务端本来就没有）。
    */
   function projectUserSettings() {
     const settingStore = useUserSettingStore()
     for (const sc of conversations.value) {
       const info = sc.conversationInfo
-      info.isTop = settingStore.isConversationTop(info.conversationType, info.line ?? 0, info.target)
-      info.isSilent = settingStore.isConversationSilent(info.conversationType, info.line ?? 0, info.target)
+      const key = conversationSettingKey(info.conversationType, info.line ?? 0, info.target)
+      info.isTop = deriveFlag(settingStore, USER_SETTING_SCOPE.conversationTop, key, info.isTop)
+      info.isSilent = deriveFlag(settingStore, USER_SETTING_SCOPE.conversationSilent, key, info.isSilent)
     }
     updateConverstationOrder()
   }

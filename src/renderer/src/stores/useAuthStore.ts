@@ -67,8 +67,10 @@ export const useAuthStore = defineStore('auth', () => {
     uiStore.initNotify()
 
     const convs = LocalStore.getConversations()
-    // 缓存里的行带着上次持久化时的 isTop/isSilent，可能早于最新一次 UG 落地；
-    // 用当前设置表重新投影一遍，避免「UG 先到、缓存后加载」的顺序用陈旧标志盖掉刚投影好的结果
+    // conversations 缓存与 user_settings 缓存是两份独立的 localStorage 持久化，写入时机互不保证同步
+    // （比如上次退出时只有一份 watch 来得及落盘）；重启后二者可能不一致，这里用已经落盘的最新设置表
+    // 重新投影一遍会话缓存，纠正这种漂移（不是为了应对「UG 先到、缓存后加载」——vueSocket 在上面才
+    // 构造，这里仍是同一段同步代码，不可能被异步到达的 UG 打断）
     if (convs) {
       conversationStore.conversations = convs
       conversationStore.projectUserSettings()
