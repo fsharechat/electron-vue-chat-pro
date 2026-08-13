@@ -7,6 +7,7 @@ import { useMessageStore } from './useMessageStore'
 import { useFriendStore } from './useFriendStore'
 import { useGroupStore } from './useGroupStore'
 import { useUIStore } from './useUIStore'
+import { useUserSettingStore } from '@/stores/useUserSettingStore'
 import VueWebSocket from '@/websocket/index'
 import webSocketClient from '@/websocket/websocketcli'
 import LocalStore from '@/websocket/store/localstore'
@@ -27,6 +28,7 @@ export const useAuthStore = defineStore('auth', () => {
     const friendStore = useFriendStore()
     const groupStore = useGroupStore()
     const uiStore = useUIStore()
+    const userSettingStore = useUserSettingStore()
 
     const dispatcher: StoreDispatcher = (action, data) => {
       const map: Record<string, () => void> = {
@@ -42,6 +44,7 @@ export const useAuthStore = defineStore('auth', () => {
         updateTempGroupMember:    () => groupStore.updateTempGroupMember(data),
         addProtoMessage:          () => messageStore.addProtoMessage(data),
         updateConversationInfo:   () => conversationStore.updateConversationInfo(data),
+        applyUserSettings:        () => userSettingStore.applyEntries(data),
         updateProtoMessageUid:    () => messageStore.updateProtoMessageUid(data),
         updateMessageStatus:      () => messageStore.updateMessageStatus(data),
         updateMessageContent:     () => messageStore.updateMessageContent(data),
