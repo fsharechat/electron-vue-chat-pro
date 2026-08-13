@@ -80,6 +80,21 @@ describe('VueWebSocket.destroy：登出时摘掉旧连接的 handler', () => {
     expect(dispatcher).not.toHaveBeenCalled()
   })
 
+  it('destroy() 不向用户弹"网络断开"提示，而系统唤醒后的重连仍然弹（把 destroy() 里的 disconnect(false) 改回 disconnect()，这个用例会红）', () => {
+    const dispatcher = vi.fn()
+    const errorHandler = vi.fn()
+
+    // 登出：用户自己发起的，不该看到错误提示
+    const loggingOut = new VueWebSocket(errorHandler, dispatcher) as any
+    loggingOut.destroy()
+    expect(errorHandler).not.toHaveBeenCalled()
+
+    // 意外断开（ping 检测到系统唤醒后走的那条路径）：提示要保留
+    const waking = new VueWebSocket(errorHandler, dispatcher) as any
+    waking.disconnect()
+    expect(errorHandler).toHaveBeenCalledWith(true, '网络断开，飞享服务链接关闭')
+  })
+
   it('destroy() 之后 sendAction 也不会再触达构造时传入的 storeDispatcher（防止有代码绕过 handlerList 直接调用）', () => {
     const dispatcher = vi.fn()
     const errorHandler = vi.fn()

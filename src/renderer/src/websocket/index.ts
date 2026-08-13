@@ -167,13 +167,23 @@ export default class VueWebSocket {
         }
     }
 
-    disconnect(){
+    /**
+     * @param notifyUser 是否向用户提示"网络断开"。系统唤醒后重连（ping）走的是意外断开，
+     *   需要提示；登出（destroy）是用户自己发起的，弹一个错误 toast 纯属噪音，传 false。
+     */
+    disconnect(notifyUser = true){
         if(this.ws){
             console.log("disconnect close ws")
             this.ws.close();
             this.ws.onclose = null;
+            if(!notifyUser){
+                // 主动登出时连 onerror 一并摘掉：关闭过程中若再报错，会又弹一次提示
+                this.ws.onerror = null;
+            }
         }
-        this.errorHandler(true,"网络断开，飞享服务链接关闭")
+        if(notifyUser){
+            this.errorHandler(true,"网络断开，飞享服务链接关闭")
+        }
         this.sendAction("setOnlineStatus", false);
         if(this.pingIntervalId){
             clearInterval(this.pingIntervalId);
@@ -199,7 +209,7 @@ export default class VueWebSocket {
      * processMessage 也找不到任何 handler，即使找到了也传不进 store。
      */
     destroy(){
-        this.disconnect();
+        this.disconnect(false);
         this.handlerList = [];
         this.storeDispatcher = () => {};
     }
