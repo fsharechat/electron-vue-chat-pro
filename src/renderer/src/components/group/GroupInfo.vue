@@ -4,6 +4,8 @@ import { useGroupStore } from '@/stores/useGroupStore'
 import { useUIStore } from '@/stores/useUIStore'
 import { useConversationStore } from '@/stores/useConversationStore'
 import { useFriendStore } from '@/stores/useFriendStore'
+import { useUserSettingStore } from '@/stores/useUserSettingStore'
+import { USER_SETTING_SCOPE } from '@/constant'
 import { useMessage, useDialog } from 'naive-ui'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import webSocketClient from '@/websocket/websocketcli'
@@ -26,8 +28,17 @@ const groupStore = useGroupStore()
 const uiStore = useUIStore()
 const convStore = useConversationStore()
 const friendStore = useFriendStore()
+const settingStore = useUserSettingStore()
 const message = useMessage()
 const dialog = useDialog()
+
+// scope 6 的 key 是裸 groupId（不走 conversationSettingKey）。开关的选中态必须由这个 computed
+// 驱动，不能落地成本地 ref：否则 UG 拉回存量设置后开关不会跟着变化
+const isSaved = computed(() => settingStore.settingValue(USER_SETTING_SCOPE.favoriteGroup, props.targetId) === '1')
+
+function toggleSaved(value: boolean) {
+  webSocketClient.updateUserSetting(USER_SETTING_SCOPE.favoriteGroup, props.targetId, value ? '1' : '0')
+}
 
 const groupInfo = computed(() => groupStore.groupInfoList.find(g => g.target === props.targetId))
 const rawMembers = computed(() => groupStore.groupMemberMap.get(props.targetId) ?? [])
@@ -170,6 +181,18 @@ function saveGroupName(e: FocusEvent) {
         <span class="section-label">群公告</span>
         <span class="section-value muted">暂无公告</span>
       </div>
+      <div class="section-row row-inline">
+        <span class="section-label">保存到通讯录</span>
+        <span
+          class="save-switch"
+          :class="{ on: isSaved }"
+          role="switch"
+          :aria-checked="isSaved"
+          @click="toggleSaved(!isSaved)"
+        >
+          <span class="save-switch-knob"></span>
+        </span>
+      </div>
     </div>
 
     <!-- Member list -->
@@ -233,7 +256,30 @@ function saveGroupName(e: FocusEvent) {
   margin-bottom: 10px;
 }
 .section-row:last-child { margin-bottom: 0; }
+.section-row.row-inline { flex-direction: row; align-items: center; justify-content: space-between; }
 .section-label { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+.row-inline .section-label { margin-bottom: 0; }
+
+.save-switch {
+  position: relative;
+  display: inline-block;
+  width: 32px; height: 18px;
+  border-radius: 9px;
+  background: var(--border);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 150ms;
+}
+.save-switch.on { background: var(--accent); }
+.save-switch-knob {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 150ms;
+}
+.save-switch.on .save-switch-knob { left: 16px; }
 .group-name-editable {
   font-size: 14px; color: var(--text-primary);
   outline: none; cursor: text;

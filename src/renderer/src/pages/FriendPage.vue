@@ -3,23 +3,27 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useFriendStore } from '@/stores/useFriendStore'
 import { useConversationStore } from '@/stores/useConversationStore'
+import { useGroupStore } from '@/stores/useGroupStore'
 import { useUIStore } from '@/stores/useUIStore'
 import { useRouter } from 'vue-router'
 import SearchBar from '@/components/common/SearchBar.vue'
 import FriendList from '@/components/friend/FriendList.vue'
 import FriendInfo from '@/components/friend/FriendInfo.vue'
 import FriendRequestPanel from '@/components/friend/FriendRequest.vue'
+import SavedGroupList from '@/components/group/SavedGroupList.vue'
 import ProtoConversationInfo from '@/websocket/model/protoConversationInfo'
 import UnreadCount from '@/websocket/model/unReadCount'
 
 const friendStore = useFriendStore()
 const convStore = useConversationStore()
+const groupStore = useGroupStore()
 const uiStore = useUIStore()
 const router = useRouter()
 const { selectFriendId, selectedFriend } = storeToRefs(friendStore)
 const { showSearchFriendDialog } = storeToRefs(uiStore)
 
 const showRequests = computed(() => selectFriendId.value === 0)
+const showSavedGroups = computed(() => selectFriendId.value === -1)
 
 function sendMessage() {
   if (!selectedFriend.value) return
@@ -39,6 +43,25 @@ function sendMessage() {
   convStore.selectTarget = target
   router.push('/conversation')
 }
+
+// 「群聊」面板选中一个已保存的群后打开对应会话，写法照 sendMessage：会话不存在则先建一条
+function openGroupConversation(groupId: string) {
+  const existing = convStore.conversations.find(c => c.conversationInfo.target === groupId)
+  if (!existing) {
+    const info = groupStore.groupInfoList.find(g => g.target === groupId)
+    const pci = new ProtoConversationInfo()
+    pci.conversationType = 1; pci.target = groupId; pci.line = 0
+    pci.timestamp = Date.now(); pci.unreadCount = new UnreadCount()
+    convStore.conversations.unshift({
+      name: info?.name ?? groupId,
+      img: info?.portrait ?? '',
+      conversationInfo: pci as any
+    })
+    convStore.updateConverstationOrder()
+  }
+  convStore.selectTarget = groupId
+  router.push('/conversation')
+}
 </script>
 
 <template>
@@ -53,6 +76,7 @@ function sendMessage() {
     </aside>
     <main class="info-panel">
       <FriendRequestPanel v-if="showRequests" />
+      <SavedGroupList v-else-if="showSavedGroups" @select="openGroupConversation" />
       <FriendInfo v-else-if="selectedFriend" :friend="selectedFriend" @send-message="sendMessage" />
       <div v-else class="empty">选择一个好友查看详情</div>
     </main>

@@ -42,23 +42,33 @@ function selectFriend(friend: FriendInfo) {
         {{ item.label }}
       </div>
 
-      <!-- 新的朋友 -->
-      <div
-        v-else-if="item.friend.id === 0"
-        class="friend-item new-friend-item"
-        :class="{ active: selectFriendId === 0 }"
-        @click="friendStore.selectFriendId = 0"
-      >
-        <div class="new-friend-icon-wrap">
-          <div class="new-friend-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-              <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-            </svg>
+      <!-- 新的朋友 + 群聊：两个哨兵入口，用 template 分组以保持 v-if/v-else-if/v-else 链完整 -->
+      <template v-else-if="item.friend.id === 0">
+        <div
+          class="friend-item new-friend-item"
+          :class="{ active: selectFriendId === 0 }"
+          @click="friendStore.selectFriendId = 0"
+        >
+          <div class="new-friend-icon-wrap">
+            <div class="new-friend-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+              </svg>
+            </div>
+            <span v-if="newFriendRequestCount > 0" class="req-dot"></span>
           </div>
-          <span v-if="newFriendRequestCount > 0" class="req-dot"></span>
+          <span class="name">新的朋友</span>
         </div>
-        <span class="name">新的朋友</span>
-      </div>
+
+        <!-- 群聊：结构对称，无角标 -->
+        <div
+          class="friend-item"
+          :class="{ active: selectFriendId === -1 }"
+          @click="friendStore.selectFriendId = -1"
+        >
+          <span class="name">群聊</span>
+        </div>
+      </template>
 
       <!-- 普通好友 -->
       <div
