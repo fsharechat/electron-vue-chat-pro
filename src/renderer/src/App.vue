@@ -33,7 +33,17 @@ let unsubKbd: (() => void) | null = null
 let unsubScreenshotResult: (() => void) | null = null
 let unsubTrigger: (() => void) | null = null
 
+// 兜底：文件被拖到落区之外时，阻止 Chromium 把应用页面导航成该文件。
+// 主进程 will-navigate 在生产环境放行 file://，拦不住这种导航。
+function preventWindowFileDrop(e: DragEvent): void {
+  if (!Array.from(e.dataTransfer?.types ?? []).includes('Files')) return
+  e.preventDefault()
+}
+
 onMounted(() => {
+  window.addEventListener('dragover', preventWindowFileDrop)
+  window.addEventListener('drop', preventWindowFileDrop)
+
   if (isOverlay) {
     // overlay 窗口：只监听截图数据
     unsubTrigger = window.electronAPI?.onTriggerScreenshot((data) => {
@@ -62,6 +72,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('dragover', preventWindowFileDrop)
+  window.removeEventListener('drop', preventWindowFileDrop)
   unsubKbd?.()
   unsubScreenshotResult?.()
   unsubTrigger?.()

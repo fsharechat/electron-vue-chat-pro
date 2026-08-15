@@ -6,12 +6,16 @@ export default defineConfig({
   plugins: [vue()],
   test: {
     globals: true,
+    include: ['tests/**/*.test.ts'],
     environmentMatchGlobs: [
-      ['src/main/**', 'node'],
-      ['src/renderer/**', 'jsdom'],
+      ['tests/main/**', 'node'],
+      ['tests/renderer/**', 'jsdom'],
     ],
   },
   resolve: {
-    alias: { '@': resolve(__dirname, 'src/renderer/src') }
+    alias: {
+      '@': resolve(__dirname, 'src/renderer/src'),
+      '@main': resolve(__dirname, 'src/main'),
+    }
   }
 })

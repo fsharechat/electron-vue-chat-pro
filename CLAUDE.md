@@ -17,8 +17,8 @@ npm run dev
 npm test
 
 # 运行单个测试文件
-npm test -- src/main/utils/common.test.ts
-npm test -- src/renderer/src/components/layout/AppTitleBar.test.ts
+npm test -- tests/main/utils/common.test.ts
+npm test -- tests/renderer/components/layout/AppTitleBar.test.ts
 
 # 生产构建（输出到 out/）
 npm run build
@@ -96,9 +96,12 @@ src/renderer/src/
 
 ## 测试说明
 
-vitest 使用 `environmentMatchGlobs` 双环境：
-- `src/main/**` → `node` 环境
-- `src/renderer/**` → `jsdom` 环境
+测试统一放在仓库根的 `tests/` 目录，镜像 `src/` 结构，不与正式代码混放：
+
+- `tests/main/**` → 对应 `src/main/**`，`node` 环境
+- `tests/renderer/**` → 对应 `src/renderer/src/**`，`jsdom` 环境
+
+测试中通过路径别名引用被测代码：渲染层 `@/...`、主进程 `@main/...`，不要写 `../../../src/...`。
 
 测试 Vue 组件时通过 `Object.defineProperty(window, 'electronAPI', ...)` mock IPC 接口。
 

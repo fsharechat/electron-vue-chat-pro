@@ -18,6 +18,7 @@ import type { ProtoMessage } from '@/types'
 import LocalStore from '@/websocket/store/localstore'
 import RecallMessageNotification from '@/websocket/message/notification/recallMessageNotification'
 import MessageContentType from '@/websocket/message/messageContentType'
+import { useFileDrop } from '@/composables/useFileDrop'
 
 const uiStore = useUIStore()
 const msgStore = useMessageStore()
@@ -170,6 +171,13 @@ onUnmounted(() => {
   document.removeEventListener('mousemove', onMousemove)
   document.removeEventListener('mouseup', onMouseup)
 })
+
+// ── 拖拽文件发送 ────────────────────────────────────────────
+const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null)
+
+const { isDragging, dropHandlers } = useFileDrop((files, folderNames) => {
+  messageInputRef.value?.addAttachments(files, folderNames)
+})
 </script>
 
 <template>
@@ -180,13 +188,25 @@ onUnmounted(() => {
 
     <div class="resizer" @mousedown.prevent="onResizerMousedown"></div>
 
-    <main class="chat-area" v-if="convStore.selectTarget">
+    <main class="chat-area" v-if="convStore.selectTarget" v-on="dropHandlers">
       <div class="message-area">
         <MessageList @context-menu="onContextMenu" />
       </div>
       <div class="h-resizer" @mousedown.prevent="onHResizerMousedown"></div>
       <div class="input-area" :style="{ height: inputHeight + 'px' }">
-        <MessageInput />
+        <MessageInput ref="messageInputRef" />
+      </div>
+
+      <!-- 拖拽遮罩：pointer-events none，避免自己吃掉 drop 事件 -->
+      <div v-if="isDragging" class="drop-overlay">
+        <div class="drop-overlay-inner">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <p>释放以发送文件</p>
+        </div>
       </div>
     </main>
     <div v-else class="chat-empty">
@@ -233,7 +253,7 @@ onUnmounted(() => {
 }
 .resizer:hover { background: var(--accent); }
 
-.chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-chat); }
+.chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-chat); position: relative; }
 .message-area { flex: 1; min-height: 0; overflow: hidden; }
 .h-resizer {
   height: 1px;
@@ -258,4 +278,31 @@ onUnmounted(() => {
 }
 .chat-empty svg { color: var(--text-muted); opacity: 0.4; }
 .chat-empty p { font-size: 13.5px; }
+
+/* 拖拽遮罩 */
+.drop-overlay {
+  position: absolute;
+  inset: 8px;
+  z-index: 400;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-subtle);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(1px);
+}
+.drop-overlay-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent);
+}
+.drop-overlay-inner p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
 </style>

@@ -21,6 +21,8 @@ import FileMessageContent from '@/websocket/message/fileMessageContent'
 import MessageContentMediaType from '@/websocket/message/messageContentMediaType'
 import LocalStore from '@/websocket/store/localstore'
 import axios from 'axios'
+import { classifyFiles, MAX_FILE_SIZE, MAX_ATTACHMENT_COUNT } from '@/utils/attachment'
+import Utils from '@/websocket/utils/utils'
 
 const msgStore = useMessageStore()
 const convStore = useConversationStore()
@@ -52,21 +54,57 @@ function closeScreenshotMenu(e: MouseEvent): void {
   }
 }
 
-// ── 图片预览 ────────────────────────────────────────────────────
-interface PendingImage { file: File; url: string }
-const pendingImage = ref<PendingImage | null>(null)
-
-function setPendingImage(file: File): void {
-  if (pendingImage.value) URL.revokeObjectURL(pendingImage.value.url)
-  pendingImage.value = { file, url: URL.createObjectURL(file) }
+// ── 待发附件队列 ────────────────────────────────────────────────
+type AttachmentKind = 'image' | 'file'
+interface PendingAttachment {
+  id: string
+  file: File
+  kind: AttachmentKind
+  previewUrl: string // image 走 createObjectURL；file 为空串
 }
 
-function clearPendingImage(): void {
-  if (pendingImage.value) {
-    URL.revokeObjectURL(pendingImage.value.url)
-    pendingImage.value = null
+const pendingAttachments = ref<PendingAttachment[]>([])
+let attachmentSeq = 0
+
+/** 所有入口（拖拽 / 回形针 / 图片按钮 / 粘贴 / 截图）唯一的入队通道 */
+function addAttachments(files: File[], folderNames: string[] = []): void {
+  for (const name of folderNames) message.warning(`不支持发送文件夹：${name}`)
+
+  const { accepted, oversize, overflow } = classifyFiles(files, pendingAttachments.value.length)
+
+  for (const name of oversize) {
+    message.warning(`${name} 超过 ${MAX_FILE_SIZE / 1024 / 1024}MB，已跳过`)
+  }
+  if (overflow > 0) {
+    message.warning(`一次最多发送 ${MAX_ATTACHMENT_COUNT} 个文件，已忽略 ${overflow} 个`)
+  }
+
+  for (const file of accepted) {
+    const kind: AttachmentKind = file.type.startsWith('image/') ? 'image' : 'file'
+    pendingAttachments.value.push({
+      id: `att-${Date.now()}-${attachmentSeq++}`,
+      file,
+      kind,
+      previewUrl: kind === 'image' ? URL.createObjectURL(file) : ''
+    })
   }
 }
+
+function removeAttachment(id: string): void {
+  const i = pendingAttachments.value.findIndex(a => a.id === id)
+  if (i === -1) return
+  const [removed] = pendingAttachments.value.splice(i, 1)
+  if (removed.previewUrl) URL.revokeObjectURL(removed.previewUrl)
+}
+
+function clearAttachments(): void {
+  for (const a of pendingAttachments.value) {
+    if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
+  }
+  pendingAttachments.value = []
+}
+
+defineExpose({ addAttachments })
 
 // 截图确认后 → 进入预览（不自动发送）
 watch(pendingScreenshotDataUrl, (dataUrl) => {
@@ -76,12 +114,12 @@ watch(pendingScreenshotDataUrl, (dataUrl) => {
   const mime = header.match(/:(.*?);/)?.[1] ?? 'image/png'
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
   const file = new File([bytes], `screenshot-${Date.now()}.png`, { type: mime })
-  setPendingImage(file)
+  addAttachments([file])
 })
 
 // 切换会话时清除图片预览，防止误发到其他会话
 watch(() => convStore.selectTarget, () => {
-  clearPendingImage()
+  clearAttachments()
 })
 
 onMounted(() => {
@@ -90,7 +128,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', closeScreenshotMenu)
-  if (pendingImage.value) URL.revokeObjectURL(pendingImage.value.url)
+  clearAttachments()
 })
 
 const content = ref('')
@@ -175,14 +213,14 @@ function selectAtMember(member: { memberId: string; name: string }) {
   })
 }
 
-const sendBtnActive = computed(() => content.value.trim().length > 0 || !!pendingImage.value)
+const sendBtnActive = computed(() => content.value.trim().length > 0 || pendingAttachments.value.length > 0)
 
-function buildLocal(mc: any) {
-  const sm = new SendMessage(convStore.selectTarget, mc)
+function buildLocal(mc: any, target: string) {
+  const sm = new SendMessage(target, mc)
   const m = Message.conert2Message(sm)
   const protoMsg = ProtoMessage.convertToProtoMessage(m)
   msgStore.preAddProtoMessage(protoMsg as any)
-  msgStore.triggerScrollBottom()
+  if (target === convStore.selectTarget) msgStore.triggerScrollBottom()
   return { protoMsg, m }
 }
 
@@ -191,9 +229,9 @@ function sendToServer(m: any) {
   ;(webSocketClient as any)._instance?.sendMessage(fscMsg)
 }
 
-function buildAndSend(mc: any) {
+function buildAndSend(mc: any, target: string) {
   try {
-    const { protoMsg, m } = buildLocal(mc)
+    const { protoMsg, m } = buildLocal(mc, target)
     sendToServer(m)
     return protoMsg
   } catch (e) {
@@ -216,33 +254,44 @@ function extractMentions(): { mentionedType: number; mentionedTargets: string[] 
 
 async function send() {
   const hasText = !!content.value.trim()
-  const hasImage = !!pendingImage.value
-  if (!hasText && !hasImage) { message.warning('不能发送空白信息'); return }
+  if (!hasText && pendingAttachments.value.length === 0) {
+    message.warning('不能发送空白信息')
+    return
+  }
 
-  // 在清空前快照数据，清空 UI 不依赖异步结果
-  const imageFile = pendingImage.value?.file ?? null
+  // 先快照再清空：清空 UI 不依赖异步结果，也防止上传期间重复点发送
+  // target 同样要快照——串行上传耗时较长，期间用户可能切换会话，
+  // buildLocal 若临时读取 convStore.selectTarget 会把消息错投到新会话
+  const target = convStore.selectTarget
+  const list = pendingAttachments.value.slice()
   const textSnapshot = hasText ? content.value : ''
   const mentionData = hasText ? extractMentions() : null
 
-  if (hasImage) clearPendingImage()
+  clearAttachments()
   if (hasText) content.value = ''
   showAtMenu.value = false
   textareaRef.value?.focus()
 
-  try {
-    if (hasImage && imageFile) {
-      try {
-        await sendImage(imageFile)
-      } catch (e) {
-        console.error('Image send failed', e)
-        message.error('图片发送失败，请重试')
-      }
+  // 串行上传，避免并发打爆带宽；单个失败不阻断其余
+  for (const att of list) {
+    try {
+      if (att.kind === 'image') await sendImage(att.file, target)
+      else await sendFile(att.file, target)
+    } catch (e) {
+      console.error('Attachment send failed', e)
+      message.error(`${att.file.name} 发送失败`)
     }
-    if (hasText && textSnapshot && mentionData) {
+  }
+
+  if (textSnapshot && mentionData) {
+    try {
       const mc = new TextMessageContent(textSnapshot, mentionData.mentionedType, mentionData.mentionedTargets)
-      buildAndSend(mc)
+      buildAndSend(mc, target)
+    } catch (e) {
+      console.error('Text send failed', e)
+      message.error('消息发送失败')
     }
-  } catch (e) { console.error('Send failed', e) }
+  }
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -278,21 +327,21 @@ function pickEmoji(code: string) {
   content.value += code; showEmoji.value = false; textareaRef.value?.focus()
 }
 
-async function onImageSelected(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  await sendImage(file)
-  ;(e.target as HTMLInputElement).value = ''
+function onImageSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  if (files.length > 0) addAttachments(files)
+  input.value = ''
 }
 
-async function sendImage(file: File) {
+async function sendImage(file: File, target: string) {
   try {
     const key = `${MessageContentMediaType.Image}-${LocalStore.getUserId()}-${Date.now()}-${file.name}`
     const data = await webSocketClient.getMinioUploadUrl(MessageContentMediaType.Image, key)
-    if (data?.code !== SUCCESS_CODE) return
+    if (data?.code !== SUCCESS_CODE) throw new Error('获取上传地址失败')
 
     const thumbnail = await getImageThumbnail(file)
-    const { protoMsg, m } = buildLocal(new ImageMessageContent(file, null, thumbnail))
+    const { protoMsg, m } = buildLocal(new ImageMessageContent(file, null, thumbnail), target)
 
     await fetch(data.result.url, { method: 'PUT', body: file })
     const remotePath = `${data.result.domain}/${key}`
@@ -303,13 +352,41 @@ async function sendImage(file: File) {
   } catch (e) { console.error('Image send failed', e); throw e }
 }
 
+async function sendFile(file: File, target: string) {
+  const key = `${MessageContentMediaType.File}-${LocalStore.getUserId()}-${Date.now()}-${file.name}`
+  const data = await webSocketClient.getMinioUploadUrl(MessageContentMediaType.File, key)
+  if (data?.code !== SUCCESS_CODE) throw new Error('获取上传地址失败')
+
+  const { protoMsg, m } = buildLocal(new FileMessageContent(file, ''), target)
+  try {
+    await axios.request({
+      method: 'PUT', url: data.result.url, data: file,
+      onUploadProgress: (p: any) => msgStore.setFileDownloadStatus({
+        messageId: protoMsg.messageId,
+        downloadStatus: 1,
+        downloadPercent: Math.floor(p.loaded / p.total * 100)
+      })
+    })
+    msgStore.setFileDownloadStatus({ messageId: protoMsg.messageId, downloadStatus: 2, downloadPercent: 100 })
+    const finalMc = new FileMessageContent(file, `${data.result.domain}/${key}`)
+    m.content = finalMc
+    sendToServer(m)
+    msgStore.updateSendMessage({ messageId: protoMsg.messageId, messageContent: finalMc })
+  } catch (e) {
+    // downloadStatus -1：停止转圈；status 2：气泡显示红点，点击可走「重新选择文件」引导
+    msgStore.setFileDownloadStatus({ messageId: protoMsg.messageId, downloadStatus: -1, downloadPercent: 0 })
+    msgStore.updateMessageStatus({ messageId: protoMsg.messageId, status: 2 })
+    throw e
+  }
+}
+
 function getImageThumbnail(file: File): Promise<string> {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.readAsDataURL(file)
+    reader.onerror = () => reject(new Error('读取图片失败'))
     reader.onload = e => {
       const img = new Image()
-      img.src = e.target!.result as string
+      img.onerror = () => reject(new Error('无法解码该图片'))
       img.onload = () => {
         const scale = img.width / img.height
         const w = Math.min(img.width * 0.5, 113)
@@ -319,37 +396,17 @@ function getImageThumbnail(file: File): Promise<string> {
         canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
         resolve(canvas.toDataURL('image/jpeg', 0.5).split(',')[1])
       }
+      img.src = e.target!.result as string
     }
+    reader.readAsDataURL(file)
   })
 }
 
-async function onFileSelected(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  try {
-    const key = `${MessageContentMediaType.File}-${LocalStore.getUserId()}-${Date.now()}-${file.name}`
-    const data = await webSocketClient.getMinioUploadUrl(MessageContentMediaType.File, key)
-    if (data?.code !== SUCCESS_CODE) return
-    const { protoMsg, m } = buildLocal(new FileMessageContent(file, ''))
-    try {
-      await axios.request({
-        method: 'PUT', url: data.result.url, data: file,
-        onUploadProgress: (p: any) => msgStore.setFileDownloadStatus({ messageId: protoMsg.messageId, downloadStatus: 1, downloadPercent: Math.floor(p.loaded / p.total * 100) })
-      })
-      msgStore.setFileDownloadStatus({ messageId: protoMsg.messageId, downloadStatus: 2, downloadPercent: 100 })
-      const finalMc = new FileMessageContent(file, `${data.result.domain}/${key}`)
-      m.content = finalMc
-      sendToServer(m)
-      msgStore.updateSendMessage({ messageId: protoMsg.messageId, messageContent: finalMc })
-    } catch {
-      message.error('文件上传失败')
-      // 停止转圈（downloadStatus: -1 表示上传失败）
-      msgStore.setFileDownloadStatus({ messageId: protoMsg.messageId, downloadStatus: -1, downloadPercent: 0 })
-      // 将消息标记为发送失败，显示红点
-      msgStore.updateMessageStatus({ messageId: protoMsg.messageId, status: 2 })
-    }
-  } catch (e) { console.error('File send failed', e) }
-  ;(e.target as HTMLInputElement).value = ''
+function onFileSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  if (files.length > 0) addAttachments(files)
+  input.value = ''
 }
 
 function startAudioCall() {
@@ -374,7 +431,7 @@ function onPaste(e: ClipboardEvent) {
       const blob = item.getAsFile()
       if (blob && blob.size > 0) {
         const file = new File([blob], `paste-${Date.now()}.png`, { type: blob.type })
-        setPendingImage(file)
+        addAttachments([file])
         break
       }
     }
@@ -419,14 +476,14 @@ function onPaste(e: ClipboardEvent) {
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
         </svg>
-        <input ref="uploadImgRef" type="file" accept="image/*" class="hidden-input" @change="onImageSelected" />
+        <input ref="uploadImgRef" type="file" accept="image/*" multiple class="hidden-input" @change="onImageSelected" />
       </label>
 
       <label class="tool-btn" title="发送文件">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
         </svg>
-        <input ref="uploadFileRef" type="file" class="hidden-input" @change="onFileSelected" />
+        <input ref="uploadFileRef" type="file" multiple class="hidden-input" @change="onFileSelected" />
       </label>
 
       <div class="toolbar-divider"></div>
@@ -444,11 +501,23 @@ function onPaste(e: ClipboardEvent) {
       </button>
     </div>
 
-    <!-- 图片预览 -->
-    <div v-if="pendingImage" class="pending-preview">
-      <div class="pending-item">
-        <img :src="pendingImage.url" class="pending-thumb" alt="待发图片" />
-        <button class="pending-remove" title="移除" @click="clearPendingImage">×</button>
+    <!-- 待发附件预览 -->
+    <div v-if="pendingAttachments.length > 0" class="pending-preview">
+      <div v-for="att in pendingAttachments" :key="att.id" class="pending-item">
+        <img
+          v-if="att.kind === 'image'"
+          :src="att.previewUrl"
+          class="pending-thumb"
+          :alt="att.file.name"
+        />
+        <div v-else class="pending-file" :title="att.file.name">
+          <div class="pending-file-icon"></div>
+          <div class="pending-file-info">
+            <p class="pending-file-name">{{ att.file.name }}</p>
+            <p class="pending-file-size">{{ Utils.formateSize(att.file.size) }}</p>
+          </div>
+        </div>
+        <button class="pending-remove" title="移除" @click="removeAttachment(att.id)">×</button>
       </div>
     </div>
 
@@ -547,6 +616,7 @@ function onPaste(e: ClipboardEvent) {
 /* Textarea */
 .text-input {
   flex: 1;
+  min-height: 0;
   padding: 12px 20px;
   background: transparent;
   border: none; outline: none; resize: none;
@@ -722,6 +792,8 @@ function onPaste(e: ClipboardEvent) {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  max-height: 84px;
+  overflow-y: auto;
 }
 .pending-item {
   position: relative;
@@ -753,4 +825,41 @@ function onPaste(e: ClipboardEvent) {
   line-height: 1;
 }
 .pending-remove:hover { background: #f5222d; }
+
+/* 待发文件卡片 —— 视觉对齐 MessageBubble 的 .file-msg */
+.pending-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 64px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.pending-file-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pending-file-icon::after { content: '📄'; font-size: 18px; }
+.pending-file-info { min-width: 0; }
+.pending-file-name {
+  margin: 0;
+  max-width: 140px;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pending-file-size {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
 </style>
