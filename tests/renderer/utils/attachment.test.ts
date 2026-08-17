@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { classifyFiles, MAX_FILE_SIZE, MAX_ATTACHMENT_COUNT } from '@/utils/attachment'
+import { classifyFiles, resolveAttachmentKind, MAX_FILE_SIZE, MAX_ATTACHMENT_COUNT } from '@/utils/attachment'
 
 // jsdom 里 new File([...]) 的 size 由内容长度决定，构造大文件不现实，
 // 因此用 Object.defineProperty 伪造 size
@@ -8,6 +8,32 @@ function makeFile(name: string, size: number, type = 'application/octet-stream')
   Object.defineProperty(f, 'size', { value: size })
   return f
 }
+
+describe('resolveAttachmentKind', () => {
+  it('浏览器能解码的图片格式判为 image', () => {
+    for (const type of ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/avif']) {
+      expect(resolveAttachmentKind(makeFile('a', 10, type))).toBe('image')
+    }
+  })
+
+  it('HEIC 降级为 file —— iPhone 默认拍照格式，Chromium 无内置解码器', () => {
+    expect(resolveAttachmentKind(makeFile('IMG_0001.heic', 10, 'image/heic'))).toBe('file')
+    expect(resolveAttachmentKind(makeFile('IMG_0002.heif', 10, 'image/heif'))).toBe('file')
+  })
+
+  it('TIFF 等其他不可解码的 image/* 同样降级为 file', () => {
+    expect(resolveAttachmentKind(makeFile('scan.tif', 10, 'image/tiff'))).toBe('file')
+  })
+
+  it('MIME 大小写不影响判定', () => {
+    expect(resolveAttachmentKind(makeFile('a.JPG', 10, 'IMAGE/JPEG'))).toBe('image')
+  })
+
+  it('普通文件与空 type 判为 file', () => {
+    expect(resolveAttachmentKind(makeFile('a.pdf', 10, 'application/pdf'))).toBe('file')
+    expect(resolveAttachmentKind(makeFile('noext', 10, ''))).toBe('file')
+  })
+})
 
 describe('classifyFiles', () => {
   it('空输入返回空结果', () => {

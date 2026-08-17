@@ -21,7 +21,7 @@ import FileMessageContent from '@/websocket/message/fileMessageContent'
 import MessageContentMediaType from '@/websocket/message/messageContentMediaType'
 import LocalStore from '@/websocket/store/localstore'
 import axios from 'axios'
-import { classifyFiles, MAX_FILE_SIZE, MAX_ATTACHMENT_COUNT } from '@/utils/attachment'
+import { classifyFiles, resolveAttachmentKind, MAX_FILE_SIZE, MAX_ATTACHMENT_COUNT, type AttachmentKind } from '@/utils/attachment'
 import Utils from '@/websocket/utils/utils'
 
 const msgStore = useMessageStore()
@@ -55,7 +55,6 @@ function closeScreenshotMenu(e: MouseEvent): void {
 }
 
 // ── 待发附件队列 ────────────────────────────────────────────────
-type AttachmentKind = 'image' | 'file'
 interface PendingAttachment {
   id: string
   file: File
@@ -80,7 +79,7 @@ function addAttachments(files: File[], folderNames: string[] = []): void {
   }
 
   for (const file of accepted) {
-    const kind: AttachmentKind = file.type.startsWith('image/') ? 'image' : 'file'
+    const kind = resolveAttachmentKind(file)
     pendingAttachments.value.push({
       id: `att-${Date.now()}-${attachmentSeq++}`,
       file,

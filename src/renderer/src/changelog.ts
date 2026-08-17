@@ -6,6 +6,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.6.1',
+    date: '2026-08-17',
+    items: [
+      'iPhone 拍摄的照片(HEIC 格式)现在可以直接拖进来发送,会作为文件送达,对方下载后用系统预览可以正常打开;此前这类照片会发送失败',
+      '同样的处理也适用于 TIFF 等其他浏览器无法预览的图片格式,不再因为生成不了缩略图就发不出去',
+    ]
+  },
+  {
     version: '1.6.0',
     date: '2026-08-15',
     items: [
