@@ -162,8 +162,14 @@ async function toggleInfoPanel() {
       </div>
     </div>
 
-    <!-- Info panel: positioned absolute over messages area -->
-    <GroupInfo v-if="showGroupInfo" :target-id="selectedChat.target" :is-single="isSingleConversation" @close="showGroupInfo = false" />
+    <!-- Info panel：传送到 ChatPage 的 .chat-area，纵向覆盖消息区 + 输入区，底边与输入框底部对齐。
+         Teleport 常驻（v-if 放在面板上），离场动画期间节点才不会被连带卸载；
+         defer：本组件挂载时父级 .chat-area 尚未插入 document，需等本轮渲染结束再解析目标 -->
+    <Teleport defer to=".chat-area">
+      <Transition name="panel-slide">
+        <GroupInfo v-if="showGroupInfo" :target-id="selectedChat.target" :is-single="isSingleConversation" @close="showGroupInfo = false" />
+      </Transition>
+    </Teleport>
 
     <UserProfileCard
       v-if="profileCard"
@@ -337,6 +343,11 @@ async function toggleInfoPanel() {
   justify-content: center;
   line-height: 1;
 }
+
+/* 信息面板：从右侧滑入 / 向右滑出 */
+.panel-slide-enter-active { transition: transform var(--dur-slow) var(--ease-out), opacity var(--dur-slow) var(--ease-out); }
+.panel-slide-leave-active { transition: transform var(--dur-normal) ease-in, opacity var(--dur-normal) ease-in; }
+.panel-slide-enter-from, .panel-slide-leave-to { transform: translateX(100%); opacity: 0; }
 
 .badge-fade-enter-active, .badge-fade-leave-active { transition: opacity var(--dur-normal), transform var(--dur-normal); }
 .badge-fade-enter-from, .badge-fade-leave-to { opacity: 0; transform: translateY(8px); }

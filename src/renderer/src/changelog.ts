@@ -6,6 +6,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.6.2',
+    date: '2026-09-30',
+    items: [
+      '群资料面板现在一直延伸到窗口底部,与输入框底边对齐,不再停在输入框上方',
+      '打开群资料面板时从右侧滑入,关闭时向右滑出,不再突然出现或消失',
+    ]
+  },
+  {
     version: '1.6.1',
     date: '2026-08-17',
     items: [

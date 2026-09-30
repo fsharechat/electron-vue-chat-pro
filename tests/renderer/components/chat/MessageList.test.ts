@@ -26,6 +26,8 @@ function mountMessageList() {
     global: {
       stubs: {
         GroupInfo: true,
+        // 单独挂载时没有 ChatPage 的 .chat-area，Teleport 目标不存在
+        teleport: true,
         UserProfileCard: true,
         ImageViewer: true,
         MessageBubble: true
