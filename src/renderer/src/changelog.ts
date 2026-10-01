@@ -6,6 +6,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.7.0',
+    date: '2026-10-01',
+    items: [
+      '主题新增「跟随系统」:点击侧边栏主题按钮可在深色、浅色、跟随系统之间切换',
+      '选择跟随系统后,切换操作系统的深色/浅色外观时应用会立即同步,无需重启',
+    ]
+  },
+  {
     version: '1.6.2',
     date: '2026-09-30',
     items: [
