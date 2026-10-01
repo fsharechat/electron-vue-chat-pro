@@ -158,11 +158,13 @@ GitHub Actions 检测到 v* tag
 
 方式一：在 Finder 中 **右键单击** 应用图标 → 选「打开」→ 弹框中再次点「打开」（只需操作一次）
 
-方式二：终端执行：
+方式二：终端执行（App 名为 `飞享IM.app`，中间**没有空格**）：
 ```bash
-xattr -cr /Applications/飞享\ IM.app
+xattr -dr com.apple.quarantine "/Applications/飞享IM.app"
 ```
-然后正常双击启动。
+然后正常双击启动。每次从浏览器下载安装新版本后，若再次弹出提示，重新执行一次即可。
+
+> 若提示 `No such file`，先用 `ls /Applications | grep 飞享` 确认实际的 App 名称。
 
 ---
 
