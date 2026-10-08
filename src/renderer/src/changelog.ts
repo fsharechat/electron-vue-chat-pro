@@ -6,6 +6,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.7.1',
+    date: '2026-10-08',
+    items: [
+      'macOS 顶部菜单栏改为中文:应用菜单、编辑、显示、窗口、帮助,快捷键不变',
+      '菜单中的「关于 / 隐藏 / 退出」显示为「飞享IM」,不再显示英文工程名',
+    ]
+  },
+  {
     version: '1.7.0',
     date: '2026-10-01',
     items: [

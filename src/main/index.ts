@@ -11,7 +11,8 @@ import fs from 'fs'
 import { is } from '@electron-toolkit/utils'
 
 const execFileAsync = promisify(execFile)
-import { WIN_SIZE_LOGIN, WIN_SIZE_MAIN } from './utils/common'
+import { WIN_SIZE_LOGIN, WIN_SIZE_MAIN, APP_NAME } from './utils/common'
+import { buildAppMenuTemplate } from './utils/appMenu'
 
 let mainWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
@@ -144,7 +145,7 @@ function createTray(): void {
   ])
 
   tray.setContextMenu(menu)
-  tray.setToolTip('飞享IM')
+  tray.setToolTip(APP_NAME)
   tray.on('click', () => showMainWindow())
 }
 
@@ -400,6 +401,8 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin') {
     systemPreferences.askForMediaAccess('camera')
     systemPreferences.askForMediaAccess('microphone')
+    app.setAboutPanelOptions({ applicationName: APP_NAME })
+    Menu.setApplicationMenu(Menu.buildFromTemplate(buildAppMenuTemplate(APP_NAME, is.dev)))
   }
   registerIPC()
   createWindow()

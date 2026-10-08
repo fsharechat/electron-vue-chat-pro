@@ -15,3 +15,10 @@ describe('window size constants', () => {
     expect(WIN_SIZE_MAIN.height).toBeGreaterThan(WIN_SIZE_LOGIN.height)
   })
 })
+
+describe('APP_NAME', () => {
+  it('is the Chinese product name', async () => {
+    const { APP_NAME } = await import('@main/utils/common')
+    expect(APP_NAME).toBe('飞享IM')
+  })
+})
