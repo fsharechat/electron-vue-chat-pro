@@ -44,6 +44,15 @@ watch(expanded, (v) => {
 })
 const collapsed = computed(() => isCollapsible.value && !expanded.value)
 
+// 消息里的链接交给系统浏览器打开;否则 <a> 会让窗口跳转,
+// 被主进程 will-navigate 拦截后转成下载,弹出另存为对话框
+function onLinkClick(e: MouseEvent) {
+  const a = (e.target as HTMLElement | null)?.closest('a[href]') as HTMLAnchorElement | null
+  if (!a) return
+  e.preventDefault()
+  if (/^https?:\/\//i.test(a.href)) window.electronAPI?.openExternal(a.href)
+}
+
 const previewText = computed(() => (props.content ?? '').slice(0, PREVIEW_LENGTH) + '…')
 
 const rendered = computed(() => {
@@ -75,7 +84,7 @@ const rendered = computed(() => {
     <button class="md-expand-btn" @click.stop="expanded = true">展开全文</button>
   </template>
   <template v-else>
-    <div class="markdown-text" v-html="rendered"></div>
+    <div class="markdown-text" v-html="rendered" @click="onLinkClick"></div>
     <button v-if="isCollapsible" class="md-expand-btn" @click.stop="expanded = false">收起</button>
     <span v-if="streaming" class="streaming-cursor">|</span>
   </template>

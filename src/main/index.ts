@@ -219,6 +219,11 @@ function registerIPC(): void {
     clipboard.writeText(text)
   })
 
+  // 消息中的链接用系统默认浏览器打开，仅放行 http(s)
+  ipcMain.on('open-external', (_, url: string) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url)
+  })
+
   ipcMain.on('start-screenshot', (_, { hideWindow }: { hideWindow: boolean }) => {
     captureScreenshot(hideWindow).catch(err => console.error('[screenshot]', err))
   })

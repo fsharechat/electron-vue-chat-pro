@@ -96,3 +96,44 @@ describe('MarkdownText 展开状态跨挂载保持', () => {
     expect(w.find('table').exists()).toBe(false)
   })
 })
+
+describe('MarkdownText 链接点击', () => {
+  const url = 'https://mp.weixin.qq.com/s/DGhupop0z1iDn9uL4Cp2mg?scene=1&click_id=1548970940'
+
+  function mockElectronAPI() {
+    const openExternal = vi.fn()
+    Object.defineProperty(window, 'electronAPI', { value: { openExternal }, configurable: true })
+    return openExternal
+  }
+
+  afterEach(() => {
+    Object.defineProperty(window, 'electronAPI', { value: undefined, configurable: true })
+  })
+
+  it('点击 http(s) 链接用系统浏览器打开,并阻止窗口内跳转', async () => {
+    const openExternal = mockElectronAPI()
+    const wrapper = mount(MarkdownText, { props: { content: url } })
+    const a = wrapper.find('a')
+    expect(a.attributes('href')).toBe(url)
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+    a.element.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(openExternal).toHaveBeenCalledWith(url)
+  })
+
+  it('点击非链接文字不触发打开', async () => {
+    const openExternal = mockElectronAPI()
+    const wrapper = mount(MarkdownText, { props: { content: '普通文字' } })
+    await wrapper.find('.markdown-text').trigger('click')
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('非 http(s) 协议的链接不交给系统打开', async () => {
+    const openExternal = mockElectronAPI()
+    const wrapper = mount(MarkdownText, { props: { content: '[x](file:///etc/passwd)' } })
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+    wrapper.find('a').element.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+})

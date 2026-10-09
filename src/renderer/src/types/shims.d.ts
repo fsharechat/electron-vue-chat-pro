@@ -25,6 +25,7 @@ interface ElectronAPI {
   onScreenshotResult(cb: (dataUrl: string) => void): () => void
   writeImageToClipboard(dataUrl: string): void
   writeTextToClipboard(text: string): void
+  openExternal(url: string): void
   showSaveDialog(defaultName: string): Promise<string | null>
   startFileDownload(url: string, savePath: string, downloadId: string): void
   onFileDownloadProgress(cb: (data: { downloadId: string; percent: number }) => void): () => void

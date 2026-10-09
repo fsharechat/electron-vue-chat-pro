@@ -46,6 +46,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeImageToClipboard: (dataUrl: string): void =>
     ipcRenderer.send('write-clipboard', dataUrl),
 
+  openExternal: (url: string): void =>
+    ipcRenderer.send('open-external', url),
+
   writeTextToClipboard: (text: string): void =>
     ipcRenderer.send('write-text-clipboard', text),
 

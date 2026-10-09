@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.7.2',
+    date: '2026-10-09',
+    items: [
+      '点击聊天消息中的网页链接,现在会用系统默认浏览器打开;此前会弹出保存文件的对话框',
+    ]
+  },
+  {
     version: '1.7.1',
     date: '2026-10-08',
     items: [
