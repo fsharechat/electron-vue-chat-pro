@@ -6,9 +6,9 @@ on:
       - 'v*'
 
 jobs:
-  # macOS：同时打 Intel(x64) + Apple Silicon(arm64)
+  # macOS：固定 macos-26（arm64 runner），同时打 Intel(x64) + Apple Silicon(arm64)
   build-mac:
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,9 +52,9 @@ jobs:
 
             也可以在 Finder 中右键点击 App →「打开」，在弹窗中再点「打开」。
 
-  # Linux：ubuntu-latest 是 x64，原生编译
+  # Linux：固定 ubuntu-24.04（x64，原生编译），避免 ubuntu-latest 迁移到新版本带来的构建变化
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -81,9 +81,9 @@ jobs:
             release/*.deb
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Windows：原生 x64 + ia32（package.json 已配置）
+  # Windows：固定 windows-2025-vs2026，原生 x64 + ia32（package.json 已配置）
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2025-vs2026
     steps:
       - name: Checkout
         uses: actions/checkout@v4
