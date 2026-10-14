@@ -10,6 +10,7 @@ import { useConversationStore } from '@/stores/useConversationStore'
 import { useFriendStore } from '@/stores/useFriendStore'
 import PersonalCard from '@/components/common/PersonalCard.vue'
 import AboutDialog from '@/components/common/AboutDialog.vue'
+import SettingsDialog from '@/components/common/SettingsDialog.vue'
 import AddTip from '@/components/common/AddTip.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 
@@ -33,6 +34,7 @@ const themeTitle = computed(() =>
 const dialog = useDialog()
 const showPersonalCard = ref(false)
 const showAboutDialog = ref(false)
+const showSettingsDialog = ref(false)
 const showAddTip = ref(false)
 
 const SEEN_VERSION_KEY = 'seen-changelog-version'
@@ -128,6 +130,12 @@ function loginOut() {
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
       </button>
+      <button class="footer-btn" title="设置" @click="showSettingsDialog = true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
       <button class="footer-btn footer-btn--about" title="关于" @click="openAbout">
         <span v-if="hasNewVersion" class="dot-badge"></span>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -143,6 +151,7 @@ function loginOut() {
     </footer>
 
     <AboutDialog v-if="showAboutDialog" @close="showAboutDialog=false" />
+    <SettingsDialog v-if="showSettingsDialog" @close="showSettingsDialog=false" />
   </div>
 </template>
 

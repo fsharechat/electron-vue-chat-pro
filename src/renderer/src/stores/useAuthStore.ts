@@ -7,6 +7,7 @@ import { useMessageStore } from './useMessageStore'
 import { useFriendStore } from './useFriendStore'
 import { useGroupStore } from './useGroupStore'
 import { useUIStore } from './useUIStore'
+import { useTranscriptStore } from './useTranscriptStore'
 import { useUserSettingStore } from '@/stores/useUserSettingStore'
 import VueWebSocket from '@/websocket/index'
 import webSocketClient from '@/websocket/websocketcli'
@@ -78,7 +79,8 @@ export const useAuthStore = defineStore('auth', () => {
     const msgs = LocalStore.getMessages()
     // 用 hydrateMessages 而不是直接赋值：它会把回灌进来、卡在「通话中」状态的
     // 通话记录归一成「已结束」，详见 useMessageStore.ts 里的说明。
-    if (msgs) messageStore.hydrateMessages(msgs)
+    // msgs 为空（全新安装）也要调用，保证一次性迁移标记被写入
+    messageStore.hydrateMessages(msgs ?? [])
     const target = LocalStore.getSelectTarget()
     if (target) conversationStore.selectTarget = target
     const userInfos = LocalStore.getUserInfoList()
@@ -124,6 +126,7 @@ export const useAuthStore = defineStore('auth', () => {
     // 设置与 version 必须同生共死地清空：只清其一会让下个账号的 shouldPullUserSettings
     // 误判为"本地已经很新"而永久跳过 UG 拉取（见 useUserSettingStore.clearAll 注释）
     userSettingStore.clearAll()
+    useTranscriptStore().reset()
     window.electronAPI?.setLoggedIn(false)
   }
 

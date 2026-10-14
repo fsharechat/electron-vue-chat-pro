@@ -63,6 +63,7 @@ class WebSocketClient {
   kickeMembers(groupId, memberIds) { return this._instance?.kickeMembers(groupId, memberIds) }
   recallMessage(messageUid) { return this._instance?.recallMessage(messageUid) }
   getMinioUploadUrl(mediaType, key) { return this._instance?.getMinioUploadUrl(mediaType, key) }
+  speechToText(messageUid) { return this._instance?.speechToText(messageUid) }
   modifyFriendAlias(targetUid, alias) { return this._instance?.modifyFriendAlias(targetUid, alias) }
   getGroupInfo(groupId, refresh = false) {
     return this._instance?.getGroupInfo(groupId, refresh)

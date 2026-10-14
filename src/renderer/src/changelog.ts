@@ -6,6 +6,15 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.8.0',
+    date: '2026-10-14',
+    items: [
+      '语音消息支持转文字：未播放的语音右侧显示「转文字」按钮，右键语音也可选择「转文字 / 隐藏文字」，文字显示在语音气泡下方',
+      '设置中新增「自动转文字」开关：开启后新收到的语音会自动转成文字',
+      '语音消息新增未播放红点，播放或转文字后消失',
+    ]
+  },
+  {
     version: '1.7.2',
     date: '2026-10-09',
     items: [

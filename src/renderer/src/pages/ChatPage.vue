@@ -5,6 +5,8 @@ import { useMessage } from 'naive-ui'
 import { useMessageStore } from '@/stores/useMessageStore'
 import { useConversationStore } from '@/stores/useConversationStore'
 import { useUIStore } from '@/stores/useUIStore'
+import { useTranscriptStore } from '@/stores/useTranscriptStore'
+import { voiceMenuOption } from '@/utils/voiceTranscript'
 import { useCallStore } from '@/stores/useCallStore'
 import ConversationList from '@/components/conversation/ConversationList.vue'
 import MessageList from '@/components/chat/MessageList.vue'
@@ -23,6 +25,7 @@ import { useFileDrop } from '@/composables/useFileDrop'
 const uiStore = useUIStore()
 const msgStore = useMessageStore()
 const convStore = useConversationStore()
+const transcriptStore = useTranscriptStore()
 const message = useMessage()
 const { showRelayMessageDialog, showChatBox, showAudioBox } = storeToRefs(uiStore)
 
@@ -48,6 +51,10 @@ const contextMenuOptions = computed(() => {
     { label: '转发', key: 'relay' },
     { label: '复制文本', key: 'copy' },
   ]
+  const voiceOpt = contextMessage.value
+    ? voiceMenuOption(contextMessage.value, transcriptStore.entries[contextMessage.value.messageUid])
+    : null
+  if (voiceOpt) base.unshift(voiceOpt)
   if (isMedia) base.push({ label: '下载', key: 'download' })
   base.push({ label: '撤回消息', key: 'recall' })
   base.push({ label: '删除', key: 'delete' })
@@ -63,6 +70,16 @@ async function onContextMenuSelect(key: string) {
   contextMenuVisible.value = false
   const msg = contextMessage.value
   if (!msg) return
+  if (key === 'transcribe') {
+    // 点「转文字」视为已读：消红点
+    msgStore.markPlayed(msg.messageId)
+    transcriptStore.request(msg.messageUid)
+    return
+  }
+  if (key === 'hide-transcript') {
+    transcriptStore.hide(msg.messageUid)
+    return
+  }
   if (key === 'recall') {
     try {
       const data = await webSocketClient.recallMessage(msg.messageUid)

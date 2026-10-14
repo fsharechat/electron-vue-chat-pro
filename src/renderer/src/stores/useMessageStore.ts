@@ -4,6 +4,7 @@ import { CONVERSATION_MAX_MESSAGE_SIZE } from '@/constant'
 import type { StateChatMessage, ProtoMessage } from '@/types'
 import { useConversationStore } from './useConversationStore'
 import { useUIStore } from './useUIStore'
+import { useTranscriptStore } from './useTranscriptStore'
 import LocalStore from '@/websocket/store/localstore'
 import MessageStatus from '@/websocket/message/messageStatus'
 import ProtoConversationInfo from '@/websocket/model/protoConversationInfo'
@@ -13,6 +14,23 @@ import RecallMessageNotification from '@/websocket/message/notification/recallMe
 import MessageContentType from '@/websocket/message/messageContentType'
 import webSocketClient from '@/websocket/websocketcli'
 import { CALL_STATUS_CONNECTED, CALL_STATUS_ENDED } from '@/webrtc/callRecordText'
+
+// 语音「已播放」上线前本地已有的他人语音都是 Unread，首次加载时一次性置为 Played，避免升级后满屏红点
+const VOICE_PLAYED_MIGRATION_KEY = 'voice-played-migrated-v1'
+
+function isIncomingVoice(m: ProtoMessage) {
+  return m.direction === 1 && m.content?.type === MessageContentType.Voice
+}
+
+/**
+ * 新插入一条消息后的语音处理：他人语音在 firstLogin 全量拉取期间是历史消息，直接置为已播放避免满屏红点；
+ * 否则是实时收到的，交给自动转文字队列（开关判断在 enqueueAuto 内）。
+ */
+function onIncomingInserted(m: ProtoMessage) {
+  if (!isIncomingVoice(m)) return
+  if (useUIStore().firstLogin) m.status = MessageStatus.Played
+  else useTranscriptStore().enqueueAuto(m.messageUid)
+}
 
 export const useMessageStore = defineStore('message', () => {
   const messages = ref<StateChatMessage[]>([])
@@ -65,6 +83,7 @@ export const useMessageStore = defineStore('message', () => {
             chat.protoMessages.splice(0, chat.protoMessages.length - CONVERSATION_MAX_MESSAGE_SIZE)
           }
           chat.protoMessages.push(protoMessage)
+          onIncomingInserted(protoMessage)
           // 收到新消息（direction=1）且是当前会话，通知 MessageList 更新徽标
           if (protoMessage.direction === 1 && protoMessage.target === convStore.selectTarget) {
             triggerIncoming()
@@ -81,6 +100,7 @@ export const useMessageStore = defineStore('message', () => {
 
     if (!added) {
       messages.value.push({ target: protoMessage.target, name: '', protoMessages: [protoMessage] })
+      onIncomingInserted(protoMessage)
     }
 
     if (!isExist) {
@@ -178,7 +198,11 @@ export const useMessageStore = defineStore('message', () => {
     const chat = messages.value.find(m => m.target === protoMessage.target)
     if (chat) {
       const exists = chat.protoMessages.find((m: any) => m.messageId === protoMessage.messageId)
-      if (!exists) chat.protoMessages.unshift(protoMessage)
+      if (!exists) {
+        // 上滑加载的是历史消息，多半已在其他端听过，不显示红点
+        if (isIncomingVoice(protoMessage)) protoMessage.status = MessageStatus.Played
+        chat.protoMessages.unshift(protoMessage)
+      }
     }
   }
 
@@ -285,7 +309,26 @@ export const useMessageStore = defineStore('message', () => {
    */
   function hydrateMessages(chats: StateChatMessage[]) {
     normalizeStaleCallStatus(chats)
+    if (localStorage.getItem(VOICE_PLAYED_MIGRATION_KEY) !== '1') {
+      for (const chat of chats) {
+        for (const m of chat.protoMessages as ProtoMessage[]) {
+          if (isIncomingVoice(m)) m.status = MessageStatus.Played
+        }
+      }
+      localStorage.setItem(VOICE_PLAYED_MIGRATION_KEY, '1')
+    }
     messages.value = chats
+  }
+
+  /** 他人语音被播放或被点击「转文字」后置为已播放，随 messages 持久化 */
+  function markPlayed(messageId: string) {
+    for (const chat of messages.value) {
+      const m = chat.protoMessages.find((p: any) => p.messageId === messageId)
+      if (m) {
+        if (m.direction === 1) m.status = MessageStatus.Played
+        return
+      }
+    }
   }
 
   function appendStreamingContent(payload: { streamId: string; delta: string; isDone: boolean; target: string }) {
@@ -355,7 +398,7 @@ export const useMessageStore = defineStore('message', () => {
     selectedChat, currentMessages,
     addProtoMessage, preAddProtoMessage, addOldMessage, deleteMessage,
     updateMessageContent, updateProtoMessageUid, updateMessageStatus, updateCallStatus,
-    hydrateMessages,
+    hydrateMessages, markPlayed,
     appendStreamingContent, setFileDownloadStatus, updateSendMessage,
     scrollBottomTrigger, triggerScrollBottom,
     incomingMsgTrigger, triggerIncoming,

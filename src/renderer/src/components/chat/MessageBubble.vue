@@ -10,6 +10,8 @@ import { useUIStore } from '@/stores/useUIStore'
 import { useConversationStore } from '@/stores/useConversationStore'
 import { useGroupStore } from '@/stores/useGroupStore'
 import { useMessageStore } from '@/stores/useMessageStore'
+import { useTranscriptStore } from '@/stores/useTranscriptStore'
+import { voiceView } from '@/utils/voiceTranscript'
 import MarkdownText from './MarkdownText.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import LocationMessage from './LocationMessage.vue'
@@ -35,6 +37,8 @@ const uiStore = useUIStore()
 const convStore = useConversationStore()
 const groupStore = useGroupStore()
 const msgStore = useMessageStore()
+const transcriptStore = useTranscriptStore()
+const { entries: transcripts, autoTranscribe } = storeToRefs(transcriptStore)
 const nMessage = useMessage()
 const dialog = useDialog()
 const { userInfoList, stateMessageReports, emojis, minuteTick } = storeToRefs(uiStore)
@@ -223,7 +227,17 @@ function onAvatarClick(e: MouseEvent) {
 const isAudioPlaying = computed(() => uiStore.currentAudioMessageId === props.message.messageId)
 function toggleAudio() {
   if (isAudioPlaying.value) { uiStore.stopAudio(); return }
+  msgStore.markPlayed(props.message.messageId)
   uiStore.playAudio(audioInfo.value.url, props.message.messageId, () => {})
+}
+
+const voice = computed(() => voiceView(props.message, transcripts.value[props.message.messageUid], autoTranscribe.value))
+const transcriptText = computed(() => transcripts.value[props.message.messageUid]?.text ?? '')
+
+/** 点「转文字」视为已读：消红点 */
+function transcribe() {
+  msgStore.markPlayed(props.message.messageId)
+  transcriptStore.request(props.message.messageUid)
 }
 
 function resendMessage() {
@@ -400,6 +414,16 @@ async function downloadFile() {
           </div>
           <span v-else class="unknown-msg">[不支持的消息类型]</span>
         </div>
+        <div v-if="isAudio && !isSelf && (voice.showDot || voice.showPill)" class="voice-side">
+          <span v-if="voice.showDot" class="voice-dot" title="未播放"></span>
+          <button v-if="voice.showPill" class="voice-pill" @click.stop="transcribe">转文字</button>
+        </div>
+      </div>
+      <div v-if="isAudio && voice.block !== 'none'" class="voice-transcript" :class="{ self: isSelf }">
+        <span v-if="voice.block === 'loading'" class="vt-muted">转文字中…</span>
+        <span v-else-if="voice.block === 'error'" class="vt-error" @click.stop="transcriptStore.request(message.messageUid)">转文字失败，点击重试</span>
+        <span v-else-if="voice.block === 'empty'" class="vt-muted">未识别到文字</span>
+        <span v-else class="vt-text">{{ transcriptText }}</span>
       </div>
     </div>
   </div>
@@ -558,6 +582,29 @@ async function downloadFile() {
   from { height: 3px; opacity: 0.5; }
   to   { height: 14px; opacity: 1; }
 }
+.voice-side { display: flex; align-items: center; gap: 8px; align-self: center; }
+.voice-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--danger); flex-shrink: 0;
+}
+.voice-pill {
+  border: none; cursor: pointer;
+  padding: 3px 10px; border-radius: var(--radius-pill);
+  background: var(--bg-elevated); color: var(--text-secondary);
+  font-size: 12px; line-height: 18px;
+}
+.voice-pill:hover { color: var(--text-primary); }
+.voice-transcript {
+  margin-top: 6px; padding: 8px 12px; max-width: 100%;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated); color: var(--text-primary);
+  font-size: 13px; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word; user-select: text;
+  align-self: flex-start;
+}
+.voice-transcript.self { align-self: flex-end; }
+.vt-muted { color: var(--text-muted); }
+.vt-error { color: var(--danger); cursor: pointer; }
 .bubble-other .audio-icon .bar { background: var(--text-secondary); }
 
 /* File */

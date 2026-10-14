@@ -28,6 +28,7 @@ export const SAI = 'SAI'
 // 用户设置同步：UG 拉取、UP 上报、UN 服务端通知。
 // WebSocket 侧按 topic 字符串路由，不依赖 android/iOS 那边的 SubSignal ordinal
 export const UG = 'UG'; export const UP = 'UP'; export const UN = 'UN'
+export const ASR = 'ASR'
 
 /** 与服务端 UserSettingScope 对齐 */
 export const USER_SETTING_SCOPE = {
