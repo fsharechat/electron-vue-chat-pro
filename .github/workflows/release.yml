@@ -52,6 +52,14 @@ jobs:
 
             也可以在 Finder 中右键点击 App →「打开」，在弹窗中再点「打开」。
 
+      # 交给 deploy job 统一传到服务器
+      - name: Upload macOS build for deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-mac
+          path: release/*.dmg
+          retention-days: 1
+
   # Linux：固定 ubuntu-24.04（x64，原生编译），避免 ubuntu-latest 迁移到新版本带来的构建变化
   build-linux:
     runs-on: ubuntu-24.04
@@ -81,7 +89,16 @@ jobs:
             release/*.deb
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Windows：固定 windows-2025-vs2026，原生 x64 + ia32（package.json 已配置）
+      - name: Upload Linux build for deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-linux
+          path: |
+            release/*.AppImage
+            release/*.deb
+          retention-days: 1
+
+  # Windows：固定 windows-2025-vs2026，只打 x64（package.json 已配置）
   build-windows:
     runs-on: windows-2025-vs2026
     steps:
@@ -107,3 +124,59 @@ jobs:
         with:
           files: release/*.exe
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows build for deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-windows
+          path: release/*.exe
+          retention-days: 1
+
+  # 三个平台都编译成功后，统一传到服务器临时目录，再拷贝到 minio 目录（与 android-chat-pro 一致）
+  # ssh-deploy / ssh-action 只能在 Linux runner 上运行，所以单独放一个 job
+  deploy:
+    runs-on: ubuntu-24.04
+    needs: [build-mac, build-linux, build-windows]
+    steps:
+      - name: Download builds
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          path: dist
+          merge-multiple: true
+
+      # 统一成 minio 中固定的文件名
+      - name: Normalize file names
+        run: |
+          set -e
+          ls -l dist
+          mkdir deploy
+          cp dist/*-x64.exe      deploy/fshare-chat-window.exe
+          cp dist/*-x64.dmg      deploy/fshare-chat-macos.dmg
+          cp dist/*-arm64.dmg    deploy/fshare-chat-macos-arm64.dmg
+          cp dist/*.AppImage     deploy/fshare-chat-linux.AppImage
+          cp dist/*.deb          deploy/fshare-chat-linux.deb
+          ls -l deploy
+
+      - name: Deploy to Server
+        uses: easingthemes/ssh-deploy@v5.0.3
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          ARGS: '-avzr'
+          REMOTE_HOST: ${{ secrets.SERVER_HOST }}
+          REMOTE_USER: ${{ secrets.SERVER_USERNAME }}
+          SOURCE: 'deploy/'
+          TARGET: '/data/temp-release/'
+
+      - name: Copy release to minio server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            for f in fshare-chat-window.exe fshare-chat-macos.dmg fshare-chat-macos-arm64.dmg fshare-chat-linux.AppImage fshare-chat-linux.deb; do
+              cp -f /data/temp-release/$f /data/minio/miniodata/minio-bucket-file-name/$f
+            done
+            ls -l /data/minio/miniodata/minio-bucket-file-name/fshare-chat-*
