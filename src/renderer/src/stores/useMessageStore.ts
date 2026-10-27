@@ -13,10 +13,22 @@ import MessageConfig from '@/websocket/message/messageConfig'
 import RecallMessageNotification from '@/websocket/message/notification/recallMessageNotification'
 import MessageContentType from '@/websocket/message/messageContentType'
 import webSocketClient from '@/websocket/websocketcli'
+import Conversation from '@/websocket/model/conversation'
+import WsProtoMessage from '@/websocket/message/protomessage'
 import { CALL_STATUS_CONNECTED, CALL_STATUS_ENDED } from '@/webrtc/callRecordText'
 
 // 语音「已播放」上线前本地已有的他人语音都是 Unread，首次加载时一次性置为 Played，避免升级后满屏红点
 const VOICE_PLAYED_MIGRATION_KEY = 'voice-played-migrated-v1'
+
+/** 尾部断层：该会话本次增量拉取一条都没下发（服务端 Long.MAX_VALUE） */
+export const TAIL_GAP_UID = '9223372036854775807'
+
+/** 已 ack 的消息 uid（字符串形式的 64 位整数）；未 ack（'0'）或流式占位等返回 null */
+function ackedUid(m: any): bigint | null {
+  const uid = m?.messageUid
+  if (typeof uid !== 'string' || !/^[1-9]\d*$/.test(uid)) return null
+  return BigInt(uid)
+}
 
 function isIncomingVoice(m: ProtoMessage) {
   return m.direction === 1 && m.content?.type === MessageContentType.Voice
@@ -302,6 +314,33 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   /**
+   * 增量拉取时服务端截断了该会话：beforeUid 以下的消息未下发，缓存里留着的老消息与新消息之间缺了一段。
+   * 丢掉断层以下的缓存，往上翻时自然从断层处拉远程补齐。尾部断层（该会话一条都没下发）清掉全部历史，
+   * 返回 true 由调用方立即补拉最新一页；缓存里本来就没有已 ack 的消息时不存在空洞，返回 false。见服务端 docs/superpowers/specs/2026-10-26-conversation-gap-sync-design.md
+   */
+  function applyConversationGap(target: string, beforeUid: string): boolean {
+    const isTail = beforeUid === TAIL_GAP_UID
+    const chat = messages.value.find(m => m.target === target)
+    if (!chat) return false
+    const floor = BigInt(beforeUid)
+    const before = chat.protoMessages.length
+    chat.protoMessages = chat.protoMessages.filter((m: any) => {
+      const uid = ackedUid(m)
+      if (uid === null) return true
+      return !isTail && uid >= floor
+    })
+    return isTail && chat.protoMessages.length < before
+  }
+
+  /** 尾部断层：从最新开始拉一页（beforeUid 为 '0' 即从最新），服务端降序返回，逐条 unshift 后为升序 */
+  async function fillTailGap(conversationType: number, target: string) {
+    const data = await webSocketClient.getRemoteMessages(new Conversation(conversationType, target, 0), '0', 20)
+    if (!data?.result) return
+    const parsed = JSON.parse(data.result)
+    for (const raw of parsed.messageResponseList ?? []) addOldMessage(WsProtoMessage.toProtoMessage(raw) as any)
+  }
+
+  /**
    * 应用启动回灌本地消息的唯一入口（替代直接赋值 messages.value）。
    * 放在 store 而不是 useAuthStore 或 LocalStore：LocalStore 是纯 KV 存取，不该
    * 懂 CallStart 的 payload 结构；useAuthStore 只做编排。这里已经是
@@ -397,6 +436,7 @@ export const useMessageStore = defineStore('message', () => {
     messages, fileDownloadStatus, streamingMap, streamingTokenCount, pendingReplacementTargets,
     selectedChat, currentMessages,
     addProtoMessage, preAddProtoMessage, addOldMessage, deleteMessage,
+    applyConversationGap, fillTailGap,
     updateMessageContent, updateProtoMessageUid, updateMessageStatus, updateCallStatus,
     hydrateMessages, markPlayed,
     appendStreamingContent, setFileDownloadStatus, updateSendMessage,

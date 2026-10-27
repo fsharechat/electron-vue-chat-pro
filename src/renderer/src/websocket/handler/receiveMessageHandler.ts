@@ -36,6 +36,10 @@ export default class ReceiveMessageHandler extends AbstractMessageHandler {
           }
           ChatManager.onReceiveMessage(protoMessage);
         } 
+        // 服务端截断的会话：丢掉断层以下的缓存，往上翻时从断层处拉远程补齐
+        for(var gap of content.gapList || []){
+          this.vueWebsocket.sendAction('applyConversationGap', gap);
+        }
         this.vueWebsocket.sendAction('changetFirstLogin',false);
         this.vueWebsocket.sendAction('syncGroupInfos', null);
         this.vueWebsocket.sendAction('syncUserInfos', null);

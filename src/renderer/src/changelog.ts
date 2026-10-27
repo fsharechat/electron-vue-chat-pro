@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.8.1',
+    date: '2026-10-26',
+    items: [
+      '离线后重新上线，消息较多的会话不再丢失中间的历史消息：往上翻到缺口处会自动从服务器补齐（需服务端 2.2.14 及以上）',
+    ]
+  },
+  {
     version: '1.8.0',
     date: '2026-10-14',
     items: [
