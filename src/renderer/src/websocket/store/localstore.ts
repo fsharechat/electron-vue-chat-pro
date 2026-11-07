@@ -39,6 +39,18 @@ export default class LocalStore {
         localStorage.setItem("last_message_seq",messageSeq);
     }
 
+    /** MP 已追到最新后提交。Vue watch 异步落盘，必须先显式保存消息和会话再保存游标。 */
+    static commitMessageSync(head, messages, conversations){
+        const seq = String(head);
+        if(!/^[1-9]\d*$/.test(seq)) return; // 透明直推的 head 为 0
+        const previous = this.getLastMessageSeq() || '0';
+        if(BigInt(seq) < BigInt(previous)) return; // 迟到应答不能回退进度
+        this.saveMessages(messages);
+        this.saveConverSations(conversations);
+        this.setLastMessageSeq(seq);
+        this.resetSendMessageCount();
+    }
+
     static saveMessages(value){
         localStorage.setItem("messages",JSON.stringify(value));
     }

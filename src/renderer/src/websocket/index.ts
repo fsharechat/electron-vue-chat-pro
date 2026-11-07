@@ -211,6 +211,7 @@ export default class VueWebSocket {
      */
     destroy(){
         this.disconnect(false);
+        for(const handler of this.handlerList) handler.destroy?.();
         this.handlerList = [];
         this.storeDispatcher = () => {};
     }
@@ -259,7 +260,7 @@ export default class VueWebSocket {
      * 分发vuex action
      */
     sendAction(type,data){
-        this.storeDispatcher(type,data);
+        return this.storeDispatcher(type,data);
     }
 
     initHandlerList(){

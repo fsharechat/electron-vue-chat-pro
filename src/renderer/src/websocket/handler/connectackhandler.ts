@@ -45,7 +45,7 @@ export default class ConnectAckHandler extends AbstractMessageHandler{
         //好友请求信息
         this.vueWebsocket.getFriendRequest(LocalStore.getFriendRequestVersion());
         //初始拉取消息列表
+        // 沿用发送计数偏移；接收游标仅在 MP 消息成功落盘后更新。
         this.vueWebsocket.pullMessage(lastMessageSeq,0,0,LocalStore.getSendMessageCount());
-        LocalStore.setLastMessageSeq(connectAcceptedMessage.messageHead);
     }
 }

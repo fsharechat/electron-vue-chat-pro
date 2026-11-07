@@ -108,3 +108,20 @@ describe('VueWebSocket.destroy：登出时摘掉旧连接的 handler', () => {
     expect(dispatcher).not.toHaveBeenCalled()
   })
 })
+
+describe('MP 异步同步派发及销毁', () => {
+  it('sendAction 返回 dispatcher 的 Promise', async () => {
+    const result = Promise.resolve()
+    const ws = new VueWebSocket(vi.fn(), () => result) as any
+    expect(ws.sendAction('applyConversationGap', {})).toBe(result)
+    ws.destroy()
+  })
+  it('destroy 会销毁消息同步 handler', () => {
+    const ws = new VueWebSocket(vi.fn(), vi.fn()) as any
+    const receiver = ws.handlerList.find((handler: any) => handler.constructor.name === 'ReceiveMessageHandler')
+    const cleanup = vi.spyOn(receiver, 'destroy')
+    ws.destroy()
+    expect(cleanup).toHaveBeenCalledOnce()
+    expect(receiver.controller.signal.aborted).toBe(true)
+  })
+})

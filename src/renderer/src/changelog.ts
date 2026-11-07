@@ -6,6 +6,15 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.8.2',
+    date: '2026-11-07',
+    items: [
+      '修复电脑休眠或离线后重新连接时，部分消息未同步、落后于其他设备的问题',
+      '会话最新消息补拉失败时自动重试，消息同步完成后再保存同步进度',
+      '退出登录时取消未完成的消息同步，避免迟到的消息写入其他账号',
+    ]
+  },
+  {
     version: '1.8.1',
     date: '2026-10-26',
     items: [

@@ -316,28 +316,45 @@ export const useMessageStore = defineStore('message', () => {
   /**
    * 增量拉取时服务端截断了该会话：beforeUid 以下的消息未下发，缓存里留着的老消息与新消息之间缺了一段。
    * 丢掉断层以下的缓存，往上翻时自然从断层处拉远程补齐。尾部断层（该会话一条都没下发）清掉全部历史，
-   * 返回 true 由调用方立即补拉最新一页；缓存里本来就没有已 ack 的消息时不存在空洞，返回 false。见服务端 docs/superpowers/specs/2026-10-26-conversation-gap-sync-design.md
+   * 返回 true 由调用方立即补拉最新一页；即使缓存为空也必须补拉，确保失败后能重试。见服务端 docs/superpowers/specs/2026-10-26-conversation-gap-sync-design.md
    */
   function applyConversationGap(target: string, beforeUid: string): boolean {
     const isTail = beforeUid === TAIL_GAP_UID
-    const chat = messages.value.find(m => m.target === target)
-    if (!chat) return false
+    let chat = messages.value.find(m => m.target === target)
+    if (!chat) {
+      if (!isTail) return false
+      chat = { target, name: '', protoMessages: [] }
+      messages.value.push(chat)
+    }
     const floor = BigInt(beforeUid)
-    const before = chat.protoMessages.length
     chat.protoMessages = chat.protoMessages.filter((m: any) => {
       const uid = ackedUid(m)
       if (uid === null) return true
       return !isTail && uid >= floor
     })
-    return isTail && chat.protoMessages.length < before
+    return isTail
   }
 
   /** 尾部断层：从最新开始拉一页（beforeUid 为 '0' 即从最新），服务端降序返回，逐条 unshift 后为升序 */
-  async function fillTailGap(conversationType: number, target: string) {
+  async function fillTailGap(conversationType: number, target: string, signal?: AbortSignal) {
     const data = await webSocketClient.getRemoteMessages(new Conversation(conversationType, target, 0), '0', 20)
-    if (!data?.result) return
+    // 登出期间迟到的应答不能写回清空后（或新账号）的 store。
+    if (signal?.aborted) throw new Error('Message sync cancelled')
+    if (!data?.result) throw new Error('Tail gap pull failed')
     const parsed = JSON.parse(data.result)
-    for (const raw of parsed.messageResponseList ?? []) addOldMessage(WsProtoMessage.toProtoMessage(raw) as any)
+    if (!Array.isArray(parsed.messageResponseList)) throw new Error('Invalid tail gap response')
+    for (const raw of parsed.messageResponseList) addOldMessage(WsProtoMessage.toProtoMessage(raw) as any)
+    const chat = messages.value.find(m => m.target === target)
+    const latest = chat?.protoMessages[chat.protoMessages.length - 1]
+    if (latest) {
+      const pci = new ProtoConversationInfo()
+      pci.conversationType = conversationType
+      pci.target = target
+      pci.line = 0
+      pci.timestamp = latest.timestamp
+      pci.lastMessage = latest
+      useConversationStore().updateConversationInfo(pci)
+    }
   }
 
   /**

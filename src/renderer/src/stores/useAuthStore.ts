@@ -32,7 +32,7 @@ export const useAuthStore = defineStore('auth', () => {
     const userSettingStore = useUserSettingStore()
 
     const dispatcher: StoreDispatcher = (action, data) => {
-      const map: Record<string, () => void> = {
+      const map: Record<string, () => void | Promise<void>> = {
         setOnlineStatus:          () => uiStore.setOnlineStatus(data),
         changetFirstLogin:        () => uiStore.setFirstLogin(data),
         changeEmptyMessageState:  () => { uiStore.emptyMessage = data },
@@ -44,9 +44,10 @@ export const useAuthStore = defineStore('auth', () => {
         updateGroupInfos:         () => groupStore.updateGroupInfos(data),
         updateTempGroupMember:    () => groupStore.updateTempGroupMember(data),
         addProtoMessage:          () => messageStore.addProtoMessage(data),
+        commitMessageSync:        () => LocalStore.commitMessageSync(data, messageStore.messages, conversationStore.conversations),
         applyConversationGap:     () => {
           if (messageStore.applyConversationGap(data.conversation.target, data.beforeUid)) {
-            messageStore.fillTailGap(data.conversation.conversationType, data.conversation.target)
+            return messageStore.fillTailGap(data.conversation.conversationType, data.conversation.target, data.signal)
           }
         },
         updateConversationInfo:   () => conversationStore.updateConversationInfo(data),
@@ -62,7 +63,7 @@ export const useAuthStore = defineStore('auth', () => {
         syncUserInfos:            () => conversationStore.syncUserInfos(),
       }
       const handler = map[action]
-      if (handler) handler()
+      if (handler) return handler()
       else console.warn('[StoreDispatcher] unhandled action:', action)
     }
 

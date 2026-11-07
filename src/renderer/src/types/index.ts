@@ -110,5 +110,5 @@ export interface StateMessageReport {
   messageReports: MessageReport[]
 }
 
-export type StoreDispatcher = (action: string, data?: any) => void
+export type StoreDispatcher = (action: string, data?: any) => void | Promise<void>
 export type ErrorHandler = (isError: boolean, message: string) => void
